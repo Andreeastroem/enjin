@@ -7,11 +7,15 @@ by Jeffery Myers is marked with CC0 1.0. To view a copy of this license, visit h
 
 */
 
+#define CLAY_IMPLEMENTATION
+#include "clay.h"
+
 #include "raylib.h"
+#include "stageManager.h"
 
-#include "resource_dir.h"	// utility header for SearchAndSetResourceDir
+#include "resource_dir.h" // utility header for SearchAndSetResourceDir
 
-int main ()
+int main()
 {
 	// Tell the window to use vsync and work on high DPI displays
 	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
@@ -24,9 +28,11 @@ int main ()
 
 	// Load a texture from the resources directory
 	Texture wabbit = LoadTexture("wabbit_alpha.png");
-	
+
+	StageManager stageManager;
+
 	// game loop
-	while (!WindowShouldClose())		// run the loop untill the user presses ESCAPE or presses the Close button on the window
+	while (!WindowShouldClose()) // run the loop untill the user presses ESCAPE or presses the Close button on the window
 	{
 		// drawing
 		BeginDrawing();
@@ -35,11 +41,11 @@ int main ()
 		ClearBackground(BLACK);
 
 		// draw some text using the default font
-		DrawText("Hello Raylib", 200,200,20,WHITE);
+		DrawText("Hello Raylib", 200, 200, 20, WHITE);
 
 		// draw our texture to the screen
 		DrawTexture(wabbit, 400, 200, WHITE);
-		
+
 		// end the frame and get ready for the next one  (display frame, poll input, etc...)
 		EndDrawing();
 	}
