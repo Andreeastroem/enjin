@@ -90,7 +90,7 @@ end
 downloadRaylib = true
 raylib_dir = "external/raylib-master"
 
-workspaceName = 'MyGame'
+workspaceName = 'Enjin'
 baseName = path.getbasename(path.getdirectory(os.getcwd()));
 
 --if (baseName ~= 'raylib-quickstart') then
@@ -175,7 +175,7 @@ if (downloadRaylib) then
         links {"raylib"}
 
         cdialect "C17"
-        cppdialect "C++17"
+        cppdialect "C++20"
 
         includedirs {raylib_dir .. "/src" }
         includedirs {raylib_dir .."/src/external" }

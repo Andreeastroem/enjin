@@ -1,5 +1,4 @@
 #include "mainStage.h"
-#include "../clay.h"
 
 MainStage::MainStage()
 {
