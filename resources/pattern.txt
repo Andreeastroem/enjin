@@ -1,0 +1,10 @@
+# Example pattern file
+# G = Grass
+# W = Water
+# S = Sand
+# This pattern creates a beach-like environment
+GGGGSSSWWW
+GGGSSSSWWW
+GGGSSSWWWW
+SSSSSWWWWW
+SSSWWWWWWW

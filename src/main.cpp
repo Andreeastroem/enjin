@@ -1,15 +1,8 @@
-/*
-Raylib example file.
-This is an example main file for a simple raylib project.
-Use this as a starting point or replace it with your code.
-
-by Jeffery Myers is marked with CC0 1.0. To view a copy of this license, visit https://creativecommons.org/publicdomain/zero/1.0/
-
-*/
-
 #define CLAY_IMPLEMENTATION
 #include "clay.h"
 #include "clay_renderer/renderer.h"
+#include "CWF/cwf.h"
+#include "CWF/pattern_loader.h"
 
 #include "raylib.h"
 #include "StageManager/stageManager.h"
@@ -28,22 +21,54 @@ void setupClay()
 	Clay_Initialize(clayMemory, Clay_Dimensions{1024, 768}, Clay_ErrorHandler{handleClayErrors});
 }
 
-Clay_LayoutConfig layoutElement = Clay_LayoutConfig{.padding = {5}, .sizing = {.width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0)}};
-
-Clay_LayoutConfig boxElement = Clay_LayoutConfig{.padding = {5}, .sizing = {.width = CLAY_SIZING_FIXED(100), .height = CLAY_SIZING_FIXED(100)}};
-
-Clay_RenderCommandArray renderClay()
+// Example tile types
+enum TileTypes
 {
-	Clay_BeginLayout();
-	CLAY({.layout = layoutElement, .backgroundColor = {255, 255, 255, 0}})
-	{
-		CLAY({.layout = boxElement, .backgroundColor = {255, 0, 0, 255}})
-		{
-			CLAY_TEXT(CLAY_STRING("hello"), CLAY_TEXT_CONFIG({.fontId = 0}));
-		}
-		CLAY_TEXT(CLAY_STRING("hello"), CLAY_TEXT_CONFIG({.fontId = 0}));
-	}
-	return Clay_EndLayout();
+	EMPTY = 0,
+	GRASS = 1,
+	WATER = 2,
+	SAND = 3
+};
+
+void setupWFCRules(cwf::TileRules &rules)
+{
+	// GRASS can connect to GRASS and SAND
+	rules.addConnection(GRASS, cwf::Direction::NORTH, GRASS);
+	rules.addConnection(GRASS, cwf::Direction::EAST, GRASS);
+	rules.addConnection(GRASS, cwf::Direction::SOUTH, GRASS);
+	rules.addConnection(GRASS, cwf::Direction::WEST, GRASS);
+
+	rules.addConnection(GRASS, cwf::Direction::NORTH, SAND);
+	rules.addConnection(GRASS, cwf::Direction::EAST, SAND);
+	rules.addConnection(GRASS, cwf::Direction::SOUTH, SAND);
+	rules.addConnection(GRASS, cwf::Direction::WEST, SAND);
+
+	// WATER can only connect to WATER and SAND
+	rules.addConnection(WATER, cwf::Direction::NORTH, WATER);
+	rules.addConnection(WATER, cwf::Direction::EAST, WATER);
+	rules.addConnection(WATER, cwf::Direction::SOUTH, WATER);
+	rules.addConnection(WATER, cwf::Direction::WEST, WATER);
+
+	rules.addConnection(WATER, cwf::Direction::NORTH, SAND);
+	rules.addConnection(WATER, cwf::Direction::EAST, SAND);
+	rules.addConnection(WATER, cwf::Direction::SOUTH, SAND);
+	rules.addConnection(WATER, cwf::Direction::WEST, SAND);
+
+	// SAND can connect to everything
+	rules.addConnection(SAND, cwf::Direction::NORTH, SAND);
+	rules.addConnection(SAND, cwf::Direction::EAST, SAND);
+	rules.addConnection(SAND, cwf::Direction::SOUTH, SAND);
+	rules.addConnection(SAND, cwf::Direction::WEST, SAND);
+
+	rules.addConnection(SAND, cwf::Direction::NORTH, GRASS);
+	rules.addConnection(SAND, cwf::Direction::EAST, GRASS);
+	rules.addConnection(SAND, cwf::Direction::SOUTH, GRASS);
+	rules.addConnection(SAND, cwf::Direction::WEST, GRASS);
+
+	rules.addConnection(SAND, cwf::Direction::NORTH, WATER);
+	rules.addConnection(SAND, cwf::Direction::EAST, WATER);
+	rules.addConnection(SAND, cwf::Direction::SOUTH, WATER);
+	rules.addConnection(SAND, cwf::Direction::WEST, WATER);
 }
 
 int main()
@@ -51,52 +76,92 @@ int main()
 	// Clay setup
 	setupClay();
 
-	// Tell the window to use vsync and work on high DPI displays
 	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
-
-	// Create the window and OpenGL context
-	InitWindow(1280, 800, "Hello Raylib");
-
-	// Utility function from resource_dir.h to find the resources folder and set it as the current working directory so we can load from it
+	InitWindow(1280, 800, "Wave Function Collapse Example");
 	SearchAndSetResourceDir("resources");
 
-	// Load a texture from the resources directory
-	Texture wabbit = LoadTexture("wabbit_alpha.png");
-
-	StageManager stageManager;
-
-	Font fonts[1];
-	fonts[0] = LoadFontEx("resources/AldotheApache.ttf", 32, 0, 400);
-	SetTextureFilter(fonts[0].texture, TEXTURE_FILTER_BILINEAR);
-
-	// game loop
-	while (!WindowShouldClose()) // run the loop untill the user presses ESCAPE or presses the Close button on the window
+	// Load pattern from file
+	cwf::TileRules rules;
+	std::vector<std::vector<char>> pattern;
+	try
 	{
-		Clay_RenderCommandArray renderCommands = renderClay();
+		pattern = cwf::PatternLoader::loadFromFile("resources/pattern.txt");
+		rules.learnPattern(pattern);
+	}
+	catch (const std::exception &e)
+	{
+		// If pattern file doesn't exist, use default rules
+		setupWFCRules(rules);
+	}
 
-		// drawing
+	// Create WFC grid
+	cwf::Grid grid(20, 20); // 20x20 grid
+
+	// Get unique tile IDs from the rules system
+	auto [charToId, idToChar] = cwf::TileRules::createTileMapping(pattern);
+	std::vector<cwf::Tile::TileId> possibleStates;
+	for (const auto &[_, id] : charToId)
+	{
+		possibleStates.push_back(id);
+	}
+
+	if (possibleStates.empty())
+	{
+		possibleStates = {GRASS, WATER, SAND};
+	}
+
+	grid.initialize(possibleStates, rules); // Set up visuals for the tiles
+	cwf::TileVisuals visuals;
+	visuals[GRASS] = cwf::TileVisual{GREEN, nullptr, Rectangle{0, 0, 0, 0}};
+	visuals[WATER] = cwf::TileVisual{BLUE, nullptr, Rectangle{0, 0, 0, 0}};
+	visuals[SAND] = cwf::TileVisual{BEIGE, nullptr, Rectangle{0, 0, 0, 0}};
+	grid.setVisuals(visuals);
+
+	bool isGenerating = false;
+	float cellSize = 30.0f; // Size of each tile
+	float offsetX = 100.0f; // Offset from left
+	float offsetY = 100.0f; // Offset from top
+
+	while (!WindowShouldClose())
+	{
+		// Update
+		if (IsKeyPressed(KEY_SPACE))
+		{
+			isGenerating = !isGenerating;
+		}
+
+		if (IsKeyPressed(KEY_R))
+		{
+			// Reset grid
+			grid = cwf::Grid(20, 20);
+			grid.initialize(possibleStates, rules);
+			grid.setVisuals(visuals);
+			isGenerating = false;
+		}
+
+		if (isGenerating)
+		{
+			// Perform one step of the wave function collapse
+			if (!grid.collapseStep())
+			{
+				isGenerating = false; // Stop when complete
+			}
+		}
+
+		// Drawing
 		BeginDrawing();
+		ClearBackground(RAYWHITE);
 
-		// Setup the back buffer for drawing (clear color and depth buffers)
-		ClearBackground(WHITE);
+		// Draw the grid
+		grid.draw(cellSize, offsetX, offsetY);
 
-		// draw some text using the default font
-		DrawText("Hello Raylib", 200, 200, 20, WHITE);
+		// Draw instructions
+		DrawText("Space: Start/Pause Generation", 10, 10, 20, DARKGRAY);
+		DrawText("R: Reset Grid", 10, 40, 20, DARKGRAY);
 
-		// draw our texture to the screen
-		DrawTexture(wabbit, 400, 200, WHITE);
-
-		Clay_Raylib_Render(renderCommands, fonts);
-
-		// end the frame and get ready for the next one  (display frame, poll input, etc...)
 		EndDrawing();
 	}
 
-	// cleanup
-	// unload our texture so it can be cleaned up
-	UnloadTexture(wabbit);
-
-	// destroy the window and cleanup the OpenGL context
 	CloseWindow();
 	return 0;
 }
