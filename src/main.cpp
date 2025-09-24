@@ -1,7 +1,8 @@
 #define CLAY_IMPLEMENTATION
 #include "clay.h"
 #include "clay_renderer/renderer.h"
-#include "CWF/cwf.h"
+#include "CWF/tile_rules.h"
+#include "CWF/grid.h"
 #include "CWF/pattern_loader.h"
 
 #include "raylib.h"
@@ -27,7 +28,8 @@ enum TileTypes
 	EMPTY = 0,
 	GRASS = 1,
 	WATER = 2,
-	SAND = 3
+	SAND = 3,
+	TREE = 4
 };
 
 void setupWFCRules(cwf::TileRules &rules)
@@ -42,6 +44,11 @@ void setupWFCRules(cwf::TileRules &rules)
 	rules.addConnection(GRASS, cwf::Direction::EAST, SAND);
 	rules.addConnection(GRASS, cwf::Direction::SOUTH, SAND);
 	rules.addConnection(GRASS, cwf::Direction::WEST, SAND);
+
+	rules.addConnection(GRASS, cwf::Direction::NORTH, TREE);
+	rules.addConnection(GRASS, cwf::Direction::EAST, TREE);
+	rules.addConnection(GRASS, cwf::Direction::SOUTH, TREE);
+	rules.addConnection(GRASS, cwf::Direction::WEST, TREE);
 
 	// WATER can only connect to WATER and SAND
 	rules.addConnection(WATER, cwf::Direction::NORTH, WATER);
@@ -82,11 +89,12 @@ int main()
 
 	// Load pattern from file
 	cwf::TileRules rules;
-	std::vector<std::vector<char>> pattern;
+	cwf::Pattern pattern;
 	try
 	{
-		pattern = cwf::PatternLoader::loadFromFile("resources/pattern.txt");
-		rules.learnPattern(pattern);
+		pattern = cwf::PatternLoader::loadPatternFromFile("resources/pattern_example.txt");
+		rules.addTileMapping(pattern.tileMapping);
+		rules.learnPattern(pattern.charPattern);
 	}
 	catch (const std::exception &e)
 	{
@@ -95,10 +103,10 @@ int main()
 	}
 
 	// Create WFC grid
-	cwf::Grid grid(20, 20); // 20x20 grid
+	cwf::Grid grid(40, 30); // 20x20 grid
 
 	// Get unique tile IDs from the rules system
-	auto [charToId, idToChar] = cwf::TileRules::createTileMapping(pattern);
+	auto [charToId, idToChar] = pattern.tileMapping;
 	std::vector<cwf::Tile::TileId> possibleStates;
 	for (const auto &[_, id] : charToId)
 	{
@@ -107,7 +115,7 @@ int main()
 
 	if (possibleStates.empty())
 	{
-		possibleStates = {GRASS, WATER, SAND};
+		possibleStates = {GRASS, WATER, SAND, TREE};
 	}
 
 	grid.initialize(possibleStates, rules); // Set up visuals for the tiles
@@ -115,6 +123,7 @@ int main()
 	visuals[GRASS] = cwf::TileVisual{GREEN, nullptr, Rectangle{0, 0, 0, 0}};
 	visuals[WATER] = cwf::TileVisual{BLUE, nullptr, Rectangle{0, 0, 0, 0}};
 	visuals[SAND] = cwf::TileVisual{BEIGE, nullptr, Rectangle{0, 0, 0, 0}};
+	visuals[TREE] = cwf::TileVisual{DARKGREEN, nullptr, Rectangle{0, 0, 0, 0}};
 	grid.setVisuals(visuals);
 
 	bool isGenerating = false;
@@ -133,7 +142,7 @@ int main()
 		if (IsKeyPressed(KEY_R))
 		{
 			// Reset grid
-			grid = cwf::Grid(20, 20);
+			grid = cwf::Grid(40, 30);
 			grid.initialize(possibleStates, rules);
 			grid.setVisuals(visuals);
 			isGenerating = false;
