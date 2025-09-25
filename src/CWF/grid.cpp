@@ -6,9 +6,9 @@ namespace cwf
         : width(width), height(height), tiles(width * height),
           rng(std::random_device{}()) {}
 
-    void Grid::initialize(const std::vector<Tile::TileId> &possibleStates, const TileRules &rules)
+    void Grid::initialize(const std::vector<Tile::TileId> &possibleStates, const TileRules &newRules)
     {
-        this->rules = rules;
+        rules = newRules;
         for (auto &tile : tiles)
         {
             for (auto state : possibleStates)
