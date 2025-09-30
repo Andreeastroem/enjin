@@ -27,11 +27,6 @@ namespace cwf::domain
                            { return conn.toTile == to; });
     }
 
-    const std::unordered_map<TileId, std::array<std::vector<Pattern::Connection>, 4>> &Pattern::getAllConnections() const
-    {
-        return connections_;
-    }
-
     void Pattern::addTileMapping(char symbol, TileId id)
     {
         char_to_id_[symbol] = id;

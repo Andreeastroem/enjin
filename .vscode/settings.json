@@ -60,7 +60,6 @@
     "streambuf": "cpp",
     "string": "cpp",
     "string_view": "cpp",
-    "variant": "cpp",
-    "set": "cpp"
+    "variant": "cpp"
   }
 }

@@ -1,7 +1,6 @@
 #include "WaveFunctionCollapseService.h"
 #include <stdexcept>
 #include <algorithm>
-#include <set>
 
 namespace cwf::application
 {
@@ -78,23 +77,6 @@ namespace cwf::application
         domain::Grid &grid,
         const domain::Pattern &pattern)
     {
-        // First pass: gather all unique tile IDs from the pattern
-        std::set<domain::TileId> allPossibleStates;
-
-        // Loop through all possible pairs of tiles and directions
-        for (const auto &[fromId, connections] : pattern.getAllConnections())
-        {
-            allPossibleStates.insert(fromId);
-            for (int dir = 0; dir < 4; ++dir)
-            {
-                for (const auto &conn : connections[dir])
-                {
-                    allPossibleStates.insert(conn.toTile);
-                }
-            }
-        }
-
-        // Initialize each tile with all possible states
         for (int y = 0; y < grid.height(); ++y)
         {
             for (int x = 0; x < grid.width(); ++x)
@@ -102,9 +84,10 @@ namespace cwf::application
                 domain::Position pos(x, y);
                 auto &tile = grid.getTile(pos);
 
-                for (const auto &state : allPossibleStates)
+                // Add all possible states from the pattern
+                for (const auto &mapping : pattern.getTileMappings())
                 {
-                    tile.addPossibleState(state);
+                    tile.addPossibleState(mapping.first);
                 }
             }
         }
@@ -130,74 +113,9 @@ namespace cwf::application
             return false; // Contradiction
         }
 
-        // Calculate weights for each possible state based on neighbor constraints
-        std::vector<float> weights;
-        weights.reserve(possibleStates.size());
-
-        for (const auto &state : possibleStates)
-        {
-            float weight = 1.0f;
-            // Check each direction
-            for (int dir = 0; dir < 4; ++dir)
-            {
-                auto neighborPos = grid.getNeighborPosition(
-                    *minEntropyPos, static_cast<domain::Direction>(dir));
-
-                if (neighborPos)
-                {
-                    const auto &neighborTile = grid.getTile(*neighborPos);
-                    if (!neighborTile.isCollapsed())
-                    {
-                        // Count how many valid connections this state has with the neighbor's possible states
-                        int validConnections = 0;
-                        for (const auto &neighborState : neighborTile.possibleStates())
-                        {
-                            if (pattern.canConnect(state, static_cast<domain::Direction>(dir), neighborState))
-                            {
-                                validConnections++;
-                            }
-                        }
-                        // Adjust weight based on valid connections
-                        if (validConnections > 0)
-                        {
-                            weight *= static_cast<float>(validConnections) / neighborTile.possibleStates().size();
-                        }
-                        else
-                        {
-                            weight = 0.0f;
-                            break;
-                        }
-                    }
-                }
-            }
-            weights.push_back(weight);
-        }
-
-        // Check if we have any valid states
-        float totalWeight = std::accumulate(weights.begin(), weights.end(), 0.0f);
-        if (totalWeight <= 0.0f)
-        {
-            return false; // No valid states available
-        }
-
-        // Create distribution based on weights
-        std::uniform_real_distribution<float> dist(0.0f, totalWeight);
-        float selection = dist(rng_);
-
-        // Select state based on weights
-        float accumulator = 0.0f;
-        size_t selectedIndex = 0;
-        for (size_t i = 0; i < weights.size(); ++i)
-        {
-            accumulator += weights[i];
-            if (accumulator > selection)
-            {
-                selectedIndex = i;
-                break;
-            }
-        }
-
-        // Collapse the tile
+        // Randomly select a state based on weights
+        std::uniform_int_distribution<size_t> dist(0, possibleStates.size() - 1);
+        size_t selectedIndex = dist(rng_);
         tile.collapse(possibleStates[selectedIndex]);
 
         // Propagate constraints
@@ -211,29 +129,24 @@ namespace cwf::application
         const domain::Pattern &pattern,
         const domain::Position &pos)
     {
-        std::vector<domain::Position> stack;
-        std::vector<domain::Position> processed;
+        std::vector<std::pair<domain::Position, domain::Direction>> stack;
 
-        // Add initial position's neighbors
+        // Add initial neighbors
         for (int dir = 0; dir < 4; ++dir)
         {
-            if (auto neighborPos = grid.getNeighborPosition(pos, static_cast<domain::Direction>(dir)))
+            auto neighborPos = grid.getNeighborPosition(
+                pos, static_cast<domain::Direction>(dir));
+            if (neighborPos)
             {
-                stack.push_back(*neighborPos);
+                stack.emplace_back(*neighborPos, static_cast<domain::Direction>(dir));
             }
         }
 
+        // Process the stack
         while (!stack.empty())
         {
-            domain::Position currentPos = stack.back();
+            auto [currentPos, direction] = stack.back();
             stack.pop_back();
-
-            // Skip if already processed
-            if (std::find(processed.begin(), processed.end(), currentPos) != processed.end())
-            {
-                continue;
-            }
-            processed.push_back(currentPos);
 
             auto &currentTile = grid.getTile(currentPos);
             if (currentTile.isCollapsed())
@@ -241,54 +154,41 @@ namespace cwf::application
                 continue;
             }
 
+            // Get valid states based on neighbors
             std::vector<domain::TileId> validStates;
-            const auto &currentPossibleStates = currentTile.possibleStates();
-
-            for (const auto &state : currentPossibleStates)
+            for (const auto &state : currentTile.possibleStates())
             {
                 bool isValid = true;
 
-                // Check all directions
-                for (int dir = 0; dir < 4 && isValid; ++dir)
+                // Check constraints with all neighbors
+                for (int dir = 0; dir < 4; ++dir)
                 {
                     auto neighborPos = grid.getNeighborPosition(
                         currentPos, static_cast<domain::Direction>(dir));
-
                     if (!neighborPos)
                     {
-                        continue; // Edge of grid
+                        continue;
                     }
 
                     const auto &neighborTile = grid.getTile(*neighborPos);
                     bool hasValidConnection = false;
 
-                    // For collapsed neighbors, we only need to check one state
-                    if (neighborTile.isCollapsed())
+                    for (const auto &neighborState : neighborTile.possibleStates())
                     {
-                        hasValidConnection = pattern.canConnect(
-                            state,
-                            static_cast<domain::Direction>(dir),
-                            neighborTile.currentState());
-                    }
-                    else
-                    {
-                        // For uncollapsed neighbors, check all possible states
-                        for (const auto &neighborState : neighborTile.possibleStates())
+                        if (pattern.canConnect(
+                                state,
+                                static_cast<domain::Direction>(dir),
+                                neighborState))
                         {
-                            if (pattern.canConnect(
-                                    state,
-                                    static_cast<domain::Direction>(dir),
-                                    neighborState))
-                            {
-                                hasValidConnection = true;
-                                break;
-                            }
+                            hasValidConnection = true;
+                            break;
                         }
                     }
 
                     if (!hasValidConnection)
                     {
                         isValid = false;
+                        break;
                     }
                 }
 
@@ -298,35 +198,27 @@ namespace cwf::application
                 }
             }
 
-            if (validStates.size() < currentTile.entropy())
-            {
-                // Create a new vector of states to remove
-                std::vector<domain::TileId> statesToRemove;
-                for (const auto &state : currentPossibleStates)
-                {
-                    if (std::find(validStates.begin(), validStates.end(), state) == validStates.end())
-                    {
-                        statesToRemove.push_back(state);
-                    }
-                }
+            size_t oldEntropy = currentTile.entropy();
 
-                // Remove invalid states
-                for (const auto &state : statesToRemove)
+            // Update possible states
+            for (const auto &state : currentTile.possibleStates())
+            {
+                if (std::find(validStates.begin(), validStates.end(), state) == validStates.end())
                 {
                     currentTile.removePossibleState(state);
                 }
+            }
 
-                // Add neighbors to stack for processing
+            // If entropy changed, add neighbors to stack
+            if (currentTile.entropy() < oldEntropy)
+            {
                 for (int dir = 0; dir < 4; ++dir)
                 {
-                    if (auto neighborPos = grid.getNeighborPosition(
-                            currentPos, static_cast<domain::Direction>(dir)))
+                    auto neighborPos = grid.getNeighborPosition(
+                        currentPos, static_cast<domain::Direction>(dir));
+                    if (neighborPos)
                     {
-                        // Only add if not already processed
-                        if (std::find(processed.begin(), processed.end(), *neighborPos) == processed.end())
-                        {
-                            stack.push_back(*neighborPos);
-                        }
+                        stack.emplace_back(*neighborPos, static_cast<domain::Direction>(dir));
                     }
                 }
             }

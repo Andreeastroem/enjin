@@ -31,7 +31,7 @@ namespace cwf::application
         std::unique_ptr<domain::Grid> loadGrid(
             const std::string &identifier);
 
-    public:
+    private:
         void initializeGrid(domain::Grid &grid, const domain::Pattern &pattern);
         bool performCollapseStep(domain::Grid &grid, const domain::Pattern &pattern);
         void propagateConstraints(
