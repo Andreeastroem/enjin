@@ -1,12 +1,14 @@
 #define CLAY_IMPLEMENTATION
 #include "clay.h"
 #include "clay_renderer/renderer.h"
-#include "CWF/tile_rules.h"
-#include "CWF/grid.h"
-#include "CWF/pattern_loader.h"
+
+#include "CWF/Application/Services/TileVisualService.h"
+#include "CWF/Application/Services/WaveFunctionCollapseService.h"
+#include "CWF/Application/Services/PatternManagementService.h"
+#include "CWF/Infrastructure/Persistence/File/FilePatternRepository.h"
+#include "CWF/Infrastructure/Persistence/File/FileGridRepository.h"
 
 #include "raylib.h"
-#include "StageManager/stageManager.h"
 
 #include "resource_dir.h" // utility header for SearchAndSetResourceDir
 
@@ -22,62 +24,6 @@ void setupClay()
 	Clay_Initialize(clayMemory, Clay_Dimensions{1024, 768}, Clay_ErrorHandler{handleClayErrors});
 }
 
-// Example tile types
-enum TileTypes
-{
-	EMPTY = 0,
-	GRASS = 1,
-	WATER = 2,
-	SAND = 3,
-	TREE = 4
-};
-
-void setupWFCRules(cwf::TileRules &rules)
-{
-	// GRASS can connect to GRASS and SAND
-	rules.addConnection(GRASS, cwf::Direction::NORTH, GRASS);
-	rules.addConnection(GRASS, cwf::Direction::EAST, GRASS);
-	rules.addConnection(GRASS, cwf::Direction::SOUTH, GRASS);
-	rules.addConnection(GRASS, cwf::Direction::WEST, GRASS);
-
-	rules.addConnection(GRASS, cwf::Direction::NORTH, SAND);
-	rules.addConnection(GRASS, cwf::Direction::EAST, SAND);
-	rules.addConnection(GRASS, cwf::Direction::SOUTH, SAND);
-	rules.addConnection(GRASS, cwf::Direction::WEST, SAND);
-
-	rules.addConnection(GRASS, cwf::Direction::NORTH, TREE);
-	rules.addConnection(GRASS, cwf::Direction::EAST, TREE);
-	rules.addConnection(GRASS, cwf::Direction::SOUTH, TREE);
-	rules.addConnection(GRASS, cwf::Direction::WEST, TREE);
-
-	// WATER can only connect to WATER and SAND
-	rules.addConnection(WATER, cwf::Direction::NORTH, WATER);
-	rules.addConnection(WATER, cwf::Direction::EAST, WATER);
-	rules.addConnection(WATER, cwf::Direction::SOUTH, WATER);
-	rules.addConnection(WATER, cwf::Direction::WEST, WATER);
-
-	rules.addConnection(WATER, cwf::Direction::NORTH, SAND);
-	rules.addConnection(WATER, cwf::Direction::EAST, SAND);
-	rules.addConnection(WATER, cwf::Direction::SOUTH, SAND);
-	rules.addConnection(WATER, cwf::Direction::WEST, SAND);
-
-	// SAND can connect to everything
-	rules.addConnection(SAND, cwf::Direction::NORTH, SAND);
-	rules.addConnection(SAND, cwf::Direction::EAST, SAND);
-	rules.addConnection(SAND, cwf::Direction::SOUTH, SAND);
-	rules.addConnection(SAND, cwf::Direction::WEST, SAND);
-
-	rules.addConnection(SAND, cwf::Direction::NORTH, GRASS);
-	rules.addConnection(SAND, cwf::Direction::EAST, GRASS);
-	rules.addConnection(SAND, cwf::Direction::SOUTH, GRASS);
-	rules.addConnection(SAND, cwf::Direction::WEST, GRASS);
-
-	rules.addConnection(SAND, cwf::Direction::NORTH, WATER);
-	rules.addConnection(SAND, cwf::Direction::EAST, WATER);
-	rules.addConnection(SAND, cwf::Direction::SOUTH, WATER);
-	rules.addConnection(SAND, cwf::Direction::WEST, WATER);
-}
-
 int main()
 {
 	// Clay setup
@@ -87,44 +33,26 @@ int main()
 	InitWindow(1280, 800, "Wave Function Collapse Example");
 	SearchAndSetResourceDir("resources");
 
-	// Load pattern from file
-	cwf::TileRules rules;
-	cwf::Pattern pattern;
-	try
-	{
-		pattern = cwf::PatternLoader::loadPatternFromFile("resources/pattern_example.txt");
-		rules.addTileMapping(pattern.tileMapping);
-		rules.learnPattern(pattern.charPattern);
-	}
-	catch (const std::exception &e)
-	{
-		// If pattern file doesn't exist, use default rules
-		setupWFCRules(rules);
-	}
+	// Create repositories and services
+	auto gridRepo = std::make_shared<cwf::infrastructure::FileGridRepository>("resources/grids/");
+	auto patternRepo = std::make_shared<cwf::infrastructure::FilePatternRepository>("patterns/");
+	cwf::application::WaveFunctionCollapseService collapseService(gridRepo, patternRepo);
+	cwf::application::PatternManagementService patternService(patternRepo);
+	auto &visualService = cwf::application::TileVisualService::getInstance();
 
-	// Create WFC grid
-	cwf::Grid grid(40, 30); // 20x20 grid
+	// Load pattern
+	auto pattern = patternService.loadPattern("pattern_example");
 
-	// Get unique tile IDs from the rules system
-	auto [charToId, idToChar] = pattern.tileMapping;
-	std::vector<cwf::Tile::TileId> possibleStates;
-	for (const auto &[_, id] : charToId)
-	{
-		possibleStates.push_back(id);
-	}
+	// Set up visuals
+	visualService.setVisual(cwf::domain::TileId(0), cwf::domain::TileVisual(GREEN));
+	visualService.setVisual(cwf::domain::TileId(1), cwf::domain::TileVisual(BLUE));
+	visualService.setVisual(cwf::domain::TileId(2), cwf::domain::TileVisual(BEIGE));
+	visualService.setVisual(cwf::domain::TileId(3), cwf::domain::TileVisual(DARKGREEN));
 
-	if (possibleStates.empty())
-	{
-		possibleStates = {GRASS, WATER, SAND, TREE};
-	}
-
-	grid.initialize(possibleStates, rules); // Set up visuals for the tiles
-	cwf::TileVisuals visuals;
-	visuals[GRASS] = cwf::TileVisual{GREEN, nullptr, Rectangle{0, 0, 0, 0}};
-	visuals[WATER] = cwf::TileVisual{BLUE, nullptr, Rectangle{0, 0, 0, 0}};
-	visuals[SAND] = cwf::TileVisual{BEIGE, nullptr, Rectangle{0, 0, 0, 0}};
-	visuals[TREE] = cwf::TileVisual{DARKGREEN, nullptr, Rectangle{0, 0, 0, 0}};
-	grid.setVisuals(visuals);
+	// Create grid and initialize it
+	auto grid = std::make_unique<cwf::domain::Grid>(30, 20);
+	// Convert pattern to domain pattern
+	collapseService.initializeGrid(*grid, *pattern);
 
 	bool isGenerating = false;
 	float cellSize = 30.0f; // Size of each tile
@@ -142,16 +70,15 @@ int main()
 		if (IsKeyPressed(KEY_R))
 		{
 			// Reset grid
-			grid = cwf::Grid(40, 30);
-			grid.initialize(possibleStates, rules);
-			grid.setVisuals(visuals);
+			grid = std::make_unique<cwf::domain::Grid>(30, 20);
+			collapseService.initializeGrid(*grid, *pattern);
 			isGenerating = false;
 		}
 
 		if (isGenerating)
 		{
 			// Perform one step of the wave function collapse
-			if (!grid.collapseStep())
+			if (!collapseService.performCollapseStep(*grid, *pattern))
 			{
 				isGenerating = false; // Stop when complete
 			}
@@ -162,7 +89,27 @@ int main()
 		ClearBackground(RAYWHITE);
 
 		// Draw the grid
-		grid.draw(cellSize, offsetX, offsetY);
+		for (int y = 0; y < grid->height(); ++y)
+		{
+			for (int x = 0; x < grid->width(); ++x)
+			{
+				const auto &tile = grid->getTile(cwf::domain::Position(x, y));
+				if (tile.isCollapsed())
+				{
+					float drawX = offsetX + x * cellSize;
+					float drawY = offsetY + y * cellSize;
+					if (auto visual = visualService.getVisual(tile.currentState()))
+					{
+						DrawRectangle(drawX, drawY, cellSize, cellSize, visual->color);
+						if (visual->texture)
+						{
+							DrawTextureRec(*visual->texture, visual->sourceRect,
+										   {drawX, drawY}, WHITE);
+						}
+					}
+				}
+			}
+		}
 
 		// Draw instructions
 		DrawText("Space: Start/Pause Generation", 10, 10, 20, DARKGRAY);

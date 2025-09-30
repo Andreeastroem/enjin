@@ -26,6 +26,7 @@ namespace cwf::domain
         void addConnection(TileId from, Direction dir, TileId to, float weight = 1.0f);
         std::vector<Connection> getConnections(TileId from, Direction dir) const;
         bool canConnect(TileId from, Direction dir, TileId to) const;
+        const std::unordered_map<TileId, std::array<std::vector<Connection>, 4>> &getAllConnections() const;
 
         void addTileMapping(char symbol, TileId id);
         std::unordered_map<TileId, char> getTileMappings() const;
