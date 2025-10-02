@@ -171,6 +171,10 @@ if (downloadRaylib) then
         
         includedirs { "../src" }
         includedirs { "../include" }
+        
+        filter "system:macosx"
+            includedirs { "/opt/homebrew/include" }  -- This will include nlohmann-json headers from brew
+        filter {}
 
         links {"raylib"}
 

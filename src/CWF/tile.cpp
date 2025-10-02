@@ -6,6 +6,13 @@ namespace cwf
     {
     }
 
+    Tile::Tile(std::string name, TileId id)
+    {
+        Tile();
+        this->name = name;
+        this->id = id;
+    }
+
     void Tile::collapse(TileId state)
     {
         if (std::find(possibleStates.begin(), possibleStates.end(), state) == possibleStates.end())

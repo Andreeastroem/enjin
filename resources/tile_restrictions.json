@@ -1,0 +1,42 @@
+[
+  {
+    "tileId": 0,
+    "name": "Grass",
+    "potentialNeighbours": [
+      ["Grass", "Sand", "Tree"],
+      ["Grass", "Sand", "Tree"],
+      ["Grass", "Sand", "Tree"],
+      ["Grass", "Sand", "Tree"]
+    ]
+  },
+  {
+    "tileId": 1,
+    "name": "Sand",
+    "potentialNeighbours": [
+      ["Grass", "Sand", "Water"],
+      ["Grass", "Sand", "Water"],
+      ["Grass", "Sand", "Water"],
+      ["Grass", "Sand", "Water"]
+    ]
+  },
+  {
+    "tileId": 2,
+    "name": "Tree",
+    "potentialNeighbours": [
+      ["Grass", "Tree"],
+      ["Grass", "Tree"],
+      ["Grass", "Tree"],
+      ["Grass", "Tree"]
+    ]
+  },
+  {
+    "tileId": 3,
+    "name": "Water",
+    "potentialNeighbours": [
+      ["Water", "Sand"],
+      ["Water", "Sand"],
+      ["Water", "Sand"],
+      ["Water", "Sand"]
+    ]
+  }
+]

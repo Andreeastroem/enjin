@@ -8,7 +8,15 @@
 #include "raylib.h"
 #include "StageManager/stageManager.h"
 
+#include "CWF/tile_restrictions.h"
+
 #include "resource_dir.h" // utility header for SearchAndSetResourceDir
+
+struct windowSize
+{
+	static const u_int height = 1080;
+	static const u_int width = 1920;
+};
 
 void handleClayErrors(Clay_ErrorData errorData)
 {
@@ -19,7 +27,7 @@ void setupClay()
 {
 	uint64_t totalMemorySize = Clay_MinMemorySize();
 	Clay_Arena clayMemory = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, (char *)malloc(totalMemorySize));
-	Clay_Initialize(clayMemory, Clay_Dimensions{1024, 768}, Clay_ErrorHandler{handleClayErrors});
+	Clay_Initialize(clayMemory, Clay_Dimensions{windowSize::width, windowSize::height}, Clay_ErrorHandler{handleClayErrors});
 }
 
 // Example tile types
@@ -32,50 +40,9 @@ enum TileTypes
 	TREE = 4
 };
 
-void setupWFCRules(cwf::TileRules &rules)
+std::vector<std::vector<cwf::Tile>> readTileMapFromFile(std::string filename)
 {
-	// GRASS can connect to GRASS and SAND
-	rules.addConnection(GRASS, cwf::Direction::NORTH, GRASS);
-	rules.addConnection(GRASS, cwf::Direction::EAST, GRASS);
-	rules.addConnection(GRASS, cwf::Direction::SOUTH, GRASS);
-	rules.addConnection(GRASS, cwf::Direction::WEST, GRASS);
-
-	rules.addConnection(GRASS, cwf::Direction::NORTH, SAND);
-	rules.addConnection(GRASS, cwf::Direction::EAST, SAND);
-	rules.addConnection(GRASS, cwf::Direction::SOUTH, SAND);
-	rules.addConnection(GRASS, cwf::Direction::WEST, SAND);
-
-	rules.addConnection(GRASS, cwf::Direction::NORTH, TREE);
-	rules.addConnection(GRASS, cwf::Direction::EAST, TREE);
-	rules.addConnection(GRASS, cwf::Direction::SOUTH, TREE);
-	rules.addConnection(GRASS, cwf::Direction::WEST, TREE);
-
-	// WATER can only connect to WATER and SAND
-	rules.addConnection(WATER, cwf::Direction::NORTH, WATER);
-	rules.addConnection(WATER, cwf::Direction::EAST, WATER);
-	rules.addConnection(WATER, cwf::Direction::SOUTH, WATER);
-	rules.addConnection(WATER, cwf::Direction::WEST, WATER);
-
-	rules.addConnection(WATER, cwf::Direction::NORTH, SAND);
-	rules.addConnection(WATER, cwf::Direction::EAST, SAND);
-	rules.addConnection(WATER, cwf::Direction::SOUTH, SAND);
-	rules.addConnection(WATER, cwf::Direction::WEST, SAND);
-
-	// SAND can connect to everything
-	rules.addConnection(SAND, cwf::Direction::NORTH, SAND);
-	rules.addConnection(SAND, cwf::Direction::EAST, SAND);
-	rules.addConnection(SAND, cwf::Direction::SOUTH, SAND);
-	rules.addConnection(SAND, cwf::Direction::WEST, SAND);
-
-	rules.addConnection(SAND, cwf::Direction::NORTH, GRASS);
-	rules.addConnection(SAND, cwf::Direction::EAST, GRASS);
-	rules.addConnection(SAND, cwf::Direction::SOUTH, GRASS);
-	rules.addConnection(SAND, cwf::Direction::WEST, GRASS);
-
-	rules.addConnection(SAND, cwf::Direction::NORTH, WATER);
-	rules.addConnection(SAND, cwf::Direction::EAST, WATER);
-	rules.addConnection(SAND, cwf::Direction::SOUTH, WATER);
-	rules.addConnection(SAND, cwf::Direction::WEST, WATER);
+	// TODO: read file and create tile with name and ID for each determined by the tileTypes
 }
 
 int main()
@@ -84,7 +51,7 @@ int main()
 	setupClay();
 
 	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
-	InitWindow(1280, 800, "Wave Function Collapse Example");
+	InitWindow(windowSize::width, windowSize::height, "Wave Function Collapse Example");
 	SearchAndSetResourceDir("resources");
 
 	// Load pattern from file
@@ -99,7 +66,7 @@ int main()
 	catch (const std::exception &e)
 	{
 		// If pattern file doesn't exist, use default rules
-		setupWFCRules(rules);
+		exit(1);
 	}
 
 	// Create WFC grid

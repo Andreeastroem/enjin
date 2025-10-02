@@ -7,11 +7,14 @@ namespace cwf
     // Represents a single tile in the WFC grid
     class Tile
     {
+        friend class TileWeights;
+
     public:
         using TileId = int;
         using TileMapCharacter = char;
 
         Tile();
+        Tile(std::string name, TileId id);
 
         // Get the current entropy (number of possible states)
         size_t getEntropy() const { return possibleStates.size(); }
@@ -35,5 +38,9 @@ namespace cwf
         std::vector<TileId> possibleStates;
         TileId currentState;
         bool collapsed;
+
+    protected:
+        std::string name;
+        TileId id;
     };
 }
