@@ -11,6 +11,11 @@ namespace cwf
 
     public:
         using TileId = int;
+        struct PossibleState
+        {
+            TileId id;
+            float weight;
+        };
         using TileMapCharacter = char;
 
         Tile();

@@ -12,6 +12,10 @@
 
 #include "resource_dir.h" // utility header for SearchAndSetResourceDir
 
+#include <fstream>
+#include "CWF/tile_weights.h"
+#include <iostream>
+
 struct windowSize
 {
 	static const u_int height = 1080;
@@ -40,9 +44,64 @@ enum TileTypes
 	TREE = 4
 };
 
+cwf::Tile getTileFromCharacter(char character)
+{
+	switch (character)
+	{
+	case 'G':
+		return cwf::Tile("Grass", 1);
+	case 'W':
+		return cwf::Tile("Water", 2);
+	case 'S':
+		return cwf::Tile("Sand", 3);
+	case 'T':
+		return cwf::Tile("Tree", 4);
+	default:
+		break;
+	}
+}
+bool isValidCharacter(char character)
+{
+	char possibleValues[4] = {'G', 'S', 'W', 'T'};
+	for (uint i = 0; i < 4; ++i)
+	{
+		if (character == possibleValues[i])
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
 std::vector<std::vector<cwf::Tile>> readTileMapFromFile(std::string filename)
 {
 	// TODO: read file and create tile with name and ID for each determined by the tileTypes
+	std::vector<std::vector<cwf::Tile>> tilemap;
+	std::ifstream s(filename);
+	std::string row;
+
+	if (!s.is_open())
+	{
+		return tilemap;
+	}
+
+	while (std::getline(s, row))
+	{
+		std::vector<cwf::Tile> rowTiles;
+		for (char tileCharacter : row)
+		{
+			if (isValidCharacter(tileCharacter))
+			{
+				cwf::Tile t = getTileFromCharacter(tileCharacter);
+				rowTiles.push_back(t);
+			}
+		}
+		tilemap.push_back(rowTiles);
+	}
+
+	s.close();
+	return tilemap;
 }
 
 int main()
@@ -54,19 +113,25 @@ int main()
 	InitWindow(windowSize::width, windowSize::height, "Wave Function Collapse Example");
 	SearchAndSetResourceDir("resources");
 
+	auto tilemap = readTileMapFromFile("pattern.pattern");
+	auto tileWeights = cwf::TileWeights();
+	tileWeights.calculateTileWeights(tilemap);
+	tileWeights.writeTileWeightsToFile("tinyWeights.json");
+
 	// Load pattern from file
 	cwf::TileRules rules;
 	cwf::Pattern pattern;
 	try
 	{
-		pattern = cwf::PatternLoader::loadPatternFromFile("resources/pattern_example.txt");
+		pattern = cwf::PatternLoader::loadPatternFromFile("pattern_example.txt");
 		rules.addTileMapping(pattern.tileMapping);
 		rules.learnPattern(pattern.charPattern);
 	}
 	catch (const std::exception &e)
 	{
 		// If pattern file doesn't exist, use default rules
-		exit(1);
+		std::cout << "something went wrong" << std::endl;
+		return 1;
 	}
 
 	// Create WFC grid

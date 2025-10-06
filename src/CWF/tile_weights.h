@@ -12,6 +12,7 @@ namespace cwf
     {
     public:
         void calculateTileWeights(std::vector<std::vector<Tile>>);
+        void writeTileWeightsToFile(std::string filename);
 
     private:
         json weights;

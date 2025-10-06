@@ -7,6 +7,7 @@
 
 #include "tile.h"
 #include "tile_rules.h"
+#include "tile_weights.h"
 
 namespace cwf
 {
@@ -65,5 +66,6 @@ namespace cwf
         mutable std::mt19937 rng;
         TileRules rules;
         TileVisuals tileVisuals;
+        TileWeights weights;
     };
 }
