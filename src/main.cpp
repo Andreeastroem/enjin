@@ -123,7 +123,7 @@ int main()
 	InitWindow(windowSize::width, windowSize::height, "Wave Function Collapse Example");
 	SearchAndSetResourceDir("resources");
 
-	auto tilemap = readTileMapFromFile("pattern.pattern");
+	auto tilemap = readTileMapFromFile("island.pattern");
 	auto tileWeights = cwf::TileWeights();
 	tileWeights.calculateTileWeights(tilemap);
 	tileWeights.writeTileWeightsToFile("tinyWeights.json");
@@ -203,6 +203,18 @@ int main()
 			}
 		}
 
+		// Minimap controls: toggle visibility (M), toggle size (N small/large)
+		if (IsKeyPressed(KEY_M))
+		{
+			minimap.toggleVisible();
+		}
+		if (IsKeyPressed(KEY_N))
+		{
+			minimap.toggleSize(150, 300);
+		}
+		// Handle minimap click-to-pan
+		minimap.handleInput(grid, cameraCtrl.getCamera(), cellSize);
+
 		// Drawing
 		BeginDrawing();
 		ClearBackground(RAYWHITE);
@@ -220,6 +232,8 @@ int main()
 		DrawText("R: Reset Grid", 10, 40, 20, DARKGRAY);
 		DrawText("Arrows/WASD or RMB drag: Pan", 10, 70, 20, DARKGRAY);
 		DrawText("Mouse wheel: Zoom", 10, 100, 20, DARKGRAY);
+		DrawText("M: Toggle minimap visibility", 10, 130, 20, DARKGRAY);
+		DrawText("N: Toggle minimap size", 10, 160, 20, DARKGRAY);
 
 		EndDrawing();
 	}

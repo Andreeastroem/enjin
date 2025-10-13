@@ -23,11 +23,20 @@ namespace viewport
         // Render grid to texture and draw minimap with viewport rectangle
         void render(const cwf::Grid &grid, float cellSize, const Camera2D &camera);
 
+        // Handle input for minimap interactions (e.g., click-to-pan)
+        void handleInput(const cwf::Grid &grid, Camera2D &camera, float cellSize);
+
         // Optional customization
         void setMargin(int margin) { minimapMargin = margin; }
+        void setVisible(bool v) { visible = v; }
+        bool isVisible() const { return visible; }
+        void toggleVisible() { visible = !visible; }
+        void setMaxEdgePixels(int maxEdge) { desiredMaxEdge = maxEdge; }
+        int getMaxEdgePixels() const { return desiredMaxEdge; }
+        void toggleSize(int smallPx, int largePx) { desiredMaxEdge = (desiredMaxEdge == smallPx ? largePx : smallPx); }
 
     private:
-        void ensureTexture(const cwf::Grid &grid, int maxEdgePixels);
+        void ensureTexture(const cwf::Grid &grid);
         void drawViewportRect(const Camera2D &camera, float cellSize) const;
 
     private:
@@ -41,5 +50,9 @@ namespace viewport
         Color minimapViewRect{255, 0, 0, 255};
         int mmX{0};
         int mmY{0};
+        bool visible{true};
+        int desiredMaxEdge{300};
+        bool dragging{false};
+        Vector2 dragOffsetWorld{0.0f, 0.0f};
     };
 }

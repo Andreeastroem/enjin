@@ -1,6 +1,7 @@
 #include "viewport/Minimap.h"
 #include "CWF/grid.h"
 #include <cmath>
+#include <algorithm>
 
 using namespace viewport;
 
@@ -20,8 +21,9 @@ void Minimap::release()
     }
 }
 
-void Minimap::ensureTexture(const cwf::Grid &grid, int maxEdgePixels)
+void Minimap::ensureTexture(const cwf::Grid &grid)
 {
+    int maxEdgePixels = desiredMaxEdge;
     int desiredCell = static_cast<int>(std::floorf(std::fminf(
         maxEdgePixels / static_cast<float>(grid.getWidth()),
         maxEdgePixels / static_cast<float>(grid.getHeight()))));
@@ -44,7 +46,8 @@ void Minimap::ensureTexture(const cwf::Grid &grid, int maxEdgePixels)
 
 void Minimap::initialize(const cwf::Grid &grid, int maxEdgePixels)
 {
-    ensureTexture(grid, maxEdgePixels);
+    desiredMaxEdge = maxEdgePixels;
+    ensureTexture(grid);
 }
 
 void Minimap::drawViewportRect(const Camera2D &camera, float cellSize) const
@@ -75,8 +78,12 @@ void Minimap::drawViewportRect(const Camera2D &camera, float cellSize) const
 
 void Minimap::render(const cwf::Grid &grid, float cellSize, const Camera2D &camera)
 {
+    if (!visible)
+        return;
     // Keep texture sized appropriately
-    ensureTexture(grid, std::min(300, std::min(GetScreenWidth(), GetScreenHeight())));
+    int maxEdgeByScreen = std::min(desiredMaxEdge, std::min(GetScreenWidth(), GetScreenHeight()));
+    desiredMaxEdge = maxEdgeByScreen; // clamp to screen if needed
+    ensureTexture(grid);
 
     // Render to texture
     BeginTextureMode(minimapRT);
@@ -99,4 +106,58 @@ void Minimap::render(const cwf::Grid &grid, float cellSize, const Camera2D &came
 
     // Viewport rectangle
     drawViewportRect(camera, cellSize);
+}
+
+void Minimap::handleInput(const cwf::Grid &grid, Camera2D &camera, float cellSize)
+{
+    if (!visible)
+        return;
+
+    Vector2 m = GetMousePosition();
+    bool inside = (m.x >= mmX && m.y >= mmY && m.x < mmX + minimapWidth && m.y < mmY + minimapHeight);
+    float mmScale = static_cast<float>(mmCell) / cellSize;
+    float viewW = GetScreenWidth() / camera.zoom;
+    float viewH = GetScreenHeight() / camera.zoom;
+
+    // Start dragging when pressing inside minimap
+    if (IsMouseButtonPressed(MOUSE_LEFT_BUTTON) && inside)
+    {
+        dragging = true;
+        float currentCenterX = camera.target.x + viewW * 0.5f;
+        float currentCenterY = camera.target.y + viewH * 0.5f;
+        float cursorWorldX = (m.x - mmX) / mmScale;
+        float cursorWorldY = (m.y - mmY) / mmScale;
+        dragOffsetWorld = {currentCenterX - cursorWorldX, currentCenterY - cursorWorldY};
+    }
+
+    // Stop dragging when mouse released
+    if (dragging && !IsMouseButtonDown(MOUSE_LEFT_BUTTON))
+    {
+        dragging = false;
+    }
+
+    // While dragging, update camera target to follow cursor (keeping offset)
+    if (dragging)
+    {
+        float cursorWorldX = (m.x - mmX) / mmScale;
+        float cursorWorldY = (m.y - mmY) / mmScale;
+        float targetCenterX = cursorWorldX + dragOffsetWorld.x;
+        float targetCenterY = cursorWorldY + dragOffsetWorld.y;
+        camera.target.x = targetCenterX - viewW * 0.5f;
+        camera.target.y = targetCenterY - viewH * 0.5f;
+
+        // Clamp to bounds
+        int gridPixelWidth = static_cast<int>(grid.getWidth() * cellSize);
+        int gridPixelHeight = static_cast<int>(grid.getHeight() * cellSize);
+        float maxX = std::max(0.0f, static_cast<float>(gridPixelWidth) - viewW);
+        float maxY = std::max(0.0f, static_cast<float>(gridPixelHeight) - viewH);
+        if (camera.target.x < 0.0f)
+            camera.target.x = 0.0f;
+        if (camera.target.y < 0.0f)
+            camera.target.y = 0.0f;
+        if (camera.target.x > maxX)
+            camera.target.x = maxX;
+        if (camera.target.y > maxY)
+            camera.target.y = maxY;
+    }
 }
