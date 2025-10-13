@@ -37,11 +37,11 @@ void handleClayErrors(Clay_ErrorData errorData)
 	printf("%s", errorData.errorText.chars);
 }
 
-void setupClay()
+Clay_Context *setupClay()
 {
 	uint64_t totalMemorySize = Clay_MinMemorySize();
 	Clay_Arena clayMemory = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, (char *)malloc(totalMemorySize));
-	Clay_Initialize(clayMemory, Clay_Dimensions{windowSize::width, windowSize::height}, Clay_ErrorHandler{handleClayErrors});
+	return Clay_Initialize(clayMemory, Clay_Dimensions{windowSize::width, windowSize::height}, Clay_ErrorHandler{handleClayErrors});
 }
 
 // Example tile types
@@ -115,14 +115,65 @@ std::vector<std::vector<cwf::Tile>> readTileMapFromFile(std::string filename)
 	return tilemap;
 }
 
+void RenderText(Clay_String text)
+{
+	CLAY_AUTO_ID({.layout = {.padding = CLAY_PADDING_ALL(16)}})
+	{
+		CLAY_TEXT(text, CLAY_TEXT_CONFIG({.fontId = 0,
+										  .fontSize = 16,
+										  .textColor = {255, 255, 255, 255}}));
+	}
+}
+
+Clay_RenderCommandArray SideBar(Clay_Context *context)
+{
+	Clay_BeginLayout();
+
+	Clay_Sizing layoutExpand = {
+		.width = CLAY_SIZING_PERCENT(0.20f),
+		.height = CLAY_SIZING_GROW(1)};
+
+	Clay_Color backgroundColor = {90, 90, 90, 200};
+
+	CLAY(CLAY_ID("root"), {.layout = {
+							   .sizing = {
+								   .width = CLAY_SIZING_GROW(1),
+								   .height = CLAY_SIZING_GROW(1),
+							   }}})
+	{
+
+		CLAY(CLAY_ID("Container"), {.backgroundColor = backgroundColor,
+									.layout = {
+										.layoutDirection = CLAY_TOP_TO_BOTTOM,
+										.sizing = layoutExpand,
+										.childGap = 16,
+									}})
+		{
+			RenderText(CLAY_STRING("Space: Start/Pause Generation"));
+			RenderText(CLAY_STRING("R: Reset Grid"));
+			RenderText(CLAY_STRING("Arrows/WASD or RMB drag: Pan"));
+			RenderText(CLAY_STRING("Mouse wheel: Zoom"));
+			RenderText(CLAY_STRING("M: Toggle minimap visibility"));
+			RenderText(CLAY_STRING("N: Toggle minimap size"));
+		}
+	}
+	Clay_RenderCommandArray renderCommands = Clay_EndLayout();
+	return renderCommands;
+}
+
 int main()
 {
 	// Clay setup
-	setupClay();
+	Clay_Context *clayContext = setupClay();
 
 	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
 	InitWindow(windowSize::width, windowSize::height, "Wave Function Collapse Example");
 	SearchAndSetResourceDir("resources");
+
+	Font fonts[1];
+	// NOTE: After SearchAndSetResourceDir("resources") the working directory is the resources folder.
+	// Load the font relative to the new CWD (no leading "resources/") so it actually loads.
+	fonts[0] = LoadFontEx("AldotheApache.ttf", 48, 0, 400);
 
 	auto tilemap = readTileMapFromFile("island.pattern");
 	auto tileWeights = cwf::TileWeights();
@@ -175,8 +226,21 @@ int main()
 	viewport::Minimap minimap;
 	minimap.initialize(grid, 300);
 
+	Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
+	Clay_SetDebugModeEnabled(true);
+
 	while (!WindowShouldClose())
 	{
+		// Keep Clay input and layout synced with the window
+		{
+			Vector2 mp = GetMousePosition();
+			Clay_SetPointerState(Clay_Vector2{mp.x, mp.y}, IsMouseButtonDown(MOUSE_LEFT_BUTTON));
+			if (IsWindowResized())
+			{
+				Clay_SetLayoutDimensions(Clay_Dimensions{(float)GetScreenWidth(), (float)GetScreenHeight()});
+			}
+		}
+
 		// Update
 		if (IsKeyPressed(KEY_SPACE))
 		{
@@ -229,18 +293,13 @@ int main()
 		minimap.render(grid, cellSize, cameraCtrl.getCamera());
 
 		// Draw instructions
-		DrawText("Space: Start/Pause Generation", 10, 10, 20, DARKGRAY);
-		DrawText("R: Reset Grid", 10, 40, 20, DARKGRAY);
-		DrawText("Arrows/WASD or RMB drag: Pan", 10, 70, 20, DARKGRAY);
-		DrawText("Mouse wheel: Zoom", 10, 100, 20, DARKGRAY);
-		DrawText("M: Toggle minimap visibility", 10, 130, 20, DARKGRAY);
-		DrawText("N: Toggle minimap size", 10, 160, 20, DARKGRAY);
+		Clay_Raylib_Render(SideBar(clayContext), fonts);
 
 		EndDrawing();
 	}
 
 	// Cleanup
 	minimap.release();
-	CloseWindow();
+	Clay_Raylib_Close();
 	return 0;
 }
