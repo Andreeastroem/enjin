@@ -15,11 +15,19 @@
 #include <fstream>
 #include "CWF/tile_weights.h"
 #include <iostream>
+#include <cmath>
+#include <algorithm>
 
 struct windowSize
 {
 	static const u_int height = 1080;
 	static const u_int width = 1920;
+};
+
+struct gridSize
+{
+	static const u_int rows = 70;
+	static const u_int cols = 70;
 };
 
 void handleClayErrors(Clay_ErrorData errorData)
@@ -129,13 +137,12 @@ int main()
 	}
 	catch (const std::exception &e)
 	{
-		// If pattern file doesn't exist, use default rules
 		std::cout << "something went wrong" << std::endl;
 		return 1;
 	}
 
 	// Create WFC grid
-	cwf::Grid grid(40, 30); // 20x20 grid
+	cwf::Grid grid(gridSize::cols, gridSize::rows);
 
 	// Get unique tile IDs from the rules system
 	auto [charToId, idToChar] = pattern.tileMapping;
@@ -159,9 +166,33 @@ int main()
 	grid.setVisuals(visuals);
 
 	bool isGenerating = false;
-	float cellSize = 30.0f; // Size of each tile
-	float offsetX = 100.0f; // Offset from left
-	float offsetY = 100.0f; // Offset from top
+	float cellSize = 30.0f; // Size of each tile in main view (world units are pixels)
+
+	// Camera2D setup for panning/zooming the main viewport
+	Camera2D camera = {0};
+	camera.target = {0.0f, 0.0f}; // top-left world coordinate visible at screen (with offset {0,0})
+	camera.offset = {0.0f, 0.0f}; // no centering; world (0,0) draws at screen (0,0)
+	camera.rotation = 0.0f;
+	camera.zoom = 1.0f;
+
+	// Minimap setup
+	const int minimapMaxSize = 300; // maximum width/height in pixels for minimap
+	// Compute minimap cell size to fit grid within minimapMaxSize box
+	int gridPixelWidth = static_cast<int>(grid.getWidth() * cellSize);
+	int gridPixelHeight = static_cast<int>(grid.getHeight() * cellSize);
+	float mmCellF = std::floorf(std::fminf(
+		minimapMaxSize / static_cast<float>(grid.getWidth()),
+		minimapMaxSize / static_cast<float>(grid.getHeight())));
+	if (mmCellF < 1.0f)
+		mmCellF = 1.0f;
+	int mmCell = static_cast<int>(mmCellF);
+	int minimapWidth = static_cast<int>(grid.getWidth()) * mmCell;
+	int minimapHeight = static_cast<int>(grid.getHeight()) * mmCell;
+	RenderTexture2D minimapRT = LoadRenderTexture(minimapWidth, minimapHeight);
+	const int minimapMargin = 16; // margin from bottom-right
+	const Color minimapBg = Color{0, 0, 0, 140};
+	const Color minimapBorder = Color{255, 255, 255, 160};
+	const Color minimapViewRect = RED;
 
 	while (!WindowShouldClose())
 	{
@@ -174,11 +205,57 @@ int main()
 		if (IsKeyPressed(KEY_R))
 		{
 			// Reset grid
-			grid = cwf::Grid(40, 30);
+			grid = cwf::Grid(gridSize::cols, gridSize::rows);
 			grid.initialize(possibleStates, rules);
 			grid.setVisuals(visuals);
 			isGenerating = false;
 		}
+
+		// Camera input: panning with arrow keys or right-mouse drag
+		float panStep = 15.0f / camera.zoom; // screen-consistent pan speed
+		if (IsKeyDown(KEY_RIGHT) || IsKeyDown(KEY_D))
+			camera.target.x += panStep;
+		if (IsKeyDown(KEY_LEFT) || IsKeyDown(KEY_A))
+			camera.target.x -= panStep;
+		if (IsKeyDown(KEY_DOWN) || IsKeyDown(KEY_S))
+			camera.target.y += panStep;
+		if (IsKeyDown(KEY_UP) || IsKeyDown(KEY_W))
+			camera.target.y -= panStep;
+
+		if (IsMouseButtonDown(MOUSE_RIGHT_BUTTON))
+		{
+			Vector2 delta = GetMouseDelta();
+			camera.target.x -= delta.x / camera.zoom;
+			camera.target.y -= delta.y / camera.zoom;
+		}
+
+		// Zoom with mouse wheel (focus-in-place not implemented; simple zoom)
+		float wheel = GetMouseWheelMove();
+		if (wheel != 0.0f)
+		{
+			float zoomFactor = 1.0f + wheel * 0.1f;
+			camera.zoom *= zoomFactor;
+			if (camera.zoom < 0.25f)
+				camera.zoom = 0.25f;
+			if (camera.zoom > 5.0f)
+				camera.zoom = 5.0f;
+		}
+
+		// Clamp camera to grid bounds
+		int winW = GetScreenWidth();
+		int winH = GetScreenHeight();
+		float viewW = winW / camera.zoom;
+		float viewH = winH / camera.zoom;
+		float maxX = std::max(0.0f, gridPixelWidth - viewW);
+		float maxY = std::max(0.0f, gridPixelHeight - viewH);
+		if (camera.target.x < 0.0f)
+			camera.target.x = 0.0f;
+		if (camera.target.y < 0.0f)
+			camera.target.y = 0.0f;
+		if (camera.target.x > maxX)
+			camera.target.x = maxX;
+		if (camera.target.y > maxY)
+			camera.target.y = maxY;
 
 		if (isGenerating)
 		{
@@ -193,16 +270,61 @@ int main()
 		BeginDrawing();
 		ClearBackground(RAYWHITE);
 
-		// Draw the grid
-		grid.draw(cellSize, offsetX, offsetY);
+		// Draw the grid in camera space
+		BeginMode2D(camera);
+		grid.draw(cellSize, 0.0f, 0.0f);
+		EndMode2D();
+
+		// Minimap: render to texture
+		BeginTextureMode(minimapRT);
+		ClearBackground({0, 0, 0, 0});
+		grid.draw(static_cast<float>(mmCell), 0.0f, 0.0f);
+		EndTextureMode();
+
+		// Draw minimap background panel and texture in bottom-right
+		int mmX = GetScreenWidth() - minimapMargin - minimapWidth;
+		int mmY = GetScreenHeight() - minimapMargin - minimapHeight;
+		DrawRectangle(mmX - 4, mmY - 4, minimapWidth + 8, minimapHeight + 8, minimapBg);
+		DrawRectangleLines(mmX - 4, mmY - 4, minimapWidth + 8, minimapHeight + 8, minimapBorder);
+		Rectangle src = {0.0f, 0.0f, static_cast<float>(minimapRT.texture.width), -static_cast<float>(minimapRT.texture.height)}; // flip Y
+		Rectangle dst = {static_cast<float>(mmX), static_cast<float>(mmY), static_cast<float>(minimapWidth), static_cast<float>(minimapHeight)};
+		DrawTexturePro(minimapRT.texture, src, dst, {0, 0}, 0.0f, WHITE);
+
+		// Draw viewport rectangle on minimap
+		float mmScale = static_cast<float>(mmCell) / cellSize; // world->minimap scale
+		float viewRectX = mmX + camera.target.x * mmScale;
+		float viewRectY = mmY + camera.target.y * mmScale;
+		float viewRectW = (GetScreenWidth() / camera.zoom) * mmScale;
+		float viewRectH = (GetScreenHeight() / camera.zoom) * mmScale;
+		// Clamp viewport rect within minimap bounds
+		if (viewRectX < mmX)
+		{
+			viewRectW -= (mmX - viewRectX);
+			viewRectX = mmX;
+		}
+		if (viewRectY < mmY)
+		{
+			viewRectH -= (mmY - viewRectY);
+			viewRectY = mmY;
+		}
+		if (viewRectX + viewRectW > mmX + minimapWidth)
+			viewRectW = (mmX + minimapWidth) - viewRectX;
+		if (viewRectY + viewRectH > mmY + minimapHeight)
+			viewRectH = (mmY + minimapHeight) - viewRectY;
+		if (viewRectW > 0 && viewRectH > 0)
+			DrawRectangleLines(static_cast<int>(viewRectX), static_cast<int>(viewRectY), static_cast<int>(viewRectW), static_cast<int>(viewRectH), minimapViewRect);
 
 		// Draw instructions
 		DrawText("Space: Start/Pause Generation", 10, 10, 20, DARKGRAY);
 		DrawText("R: Reset Grid", 10, 40, 20, DARKGRAY);
+		DrawText("Arrows/WASD or RMB drag: Pan", 10, 70, 20, DARKGRAY);
+		DrawText("Mouse wheel: Zoom", 10, 100, 20, DARKGRAY);
 
 		EndDrawing();
 	}
 
+	// Cleanup
+	UnloadRenderTexture(minimapRT);
 	CloseWindow();
 	return 0;
 }
