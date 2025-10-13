@@ -147,17 +147,22 @@ void Minimap::handleInput(const cwf::Grid &grid, Camera2D &camera, float cellSiz
         camera.target.y = targetCenterY - viewH * 0.5f;
 
         // Clamp to bounds
-        int gridPixelWidth = static_cast<int>(grid.getWidth() * cellSize);
-        int gridPixelHeight = static_cast<int>(grid.getHeight() * cellSize);
-        float maxX = std::max(0.0f, static_cast<float>(gridPixelWidth) - viewW);
-        float maxY = std::max(0.0f, static_cast<float>(gridPixelHeight) - viewH);
-        if (camera.target.x < 0.0f)
-            camera.target.x = 0.0f;
-        if (camera.target.y < 0.0f)
-            camera.target.y = 0.0f;
-        if (camera.target.x > maxX)
-            camera.target.x = maxX;
-        if (camera.target.y > maxY)
-            camera.target.y = maxY;
+        // clampToGrid(grid, camera, cellSize, viewW, viewH);
     }
+}
+
+void Minimap::clampToGrid(const cwf::Grid &grid, Camera2D &camera, float cellSize, float viewW, float viewH)
+{
+    int gridPixelWidth = static_cast<int>(grid.getWidth() * cellSize);
+    int gridPixelHeight = static_cast<int>(grid.getHeight() * cellSize);
+    float maxX = std::max(0.0f, static_cast<float>(gridPixelWidth) - viewW);
+    float maxY = std::max(0.0f, static_cast<float>(gridPixelHeight) - viewH);
+    if (camera.target.x < 0.0f)
+        camera.target.x = 0.0f;
+    if (camera.target.y < 0.0f)
+        camera.target.y = 0.0f;
+    if (camera.target.x > maxX)
+        camera.target.x = maxX;
+    if (camera.target.y > maxY)
+        camera.target.y = maxY;
 }

@@ -89,5 +89,5 @@ void CameraController::update(const cwf::Grid &grid)
             camera.zoom = 5.0f;
     }
 
-    clampToGrid(grid);
+    // clampToGrid(grid);
 }

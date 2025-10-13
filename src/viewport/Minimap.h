@@ -38,6 +38,7 @@ namespace viewport
     private:
         void ensureTexture(const cwf::Grid &grid);
         void drawViewportRect(const Camera2D &camera, float cellSize) const;
+        void clampToGrid(const cwf::Grid &grid, Camera2D &camera, float cellSize, float viewW, float viewH);
 
     private:
         RenderTexture2D minimapRT{};

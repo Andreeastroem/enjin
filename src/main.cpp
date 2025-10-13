@@ -58,18 +58,19 @@ cwf::Tile getTileFromCharacter(char character)
 {
 	switch (character)
 	{
-	case 'G':
-		return cwf::Tile("Grass", 1);
 	case 'W':
 		return cwf::Tile("Water", 2);
 	case 'S':
 		return cwf::Tile("Sand", 3);
 	case 'T':
 		return cwf::Tile("Tree", 4);
+	case 'G':
 	default:
+		return cwf::Tile("Grass", 1);
 		break;
 	}
 }
+
 bool isValidCharacter(char character)
 {
 	char possibleValues[4] = {'G', 'S', 'W', 'T'};
