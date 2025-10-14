@@ -51,4 +51,9 @@ namespace cwf
             collapse(possibleStates[0]);
         }
     }
+
+    const Tile::TileId Tile::getCurrectState()
+    {
+        return id;
+    }
 }

@@ -52,6 +52,9 @@ namespace cwf
         void setVisuals(const TileVisuals &visuals) { tileVisuals = visuals; }
         void draw(float cellSize, float offsetX = 0, float offsetY = 0) const;
 
+        // Persistence methods
+        bool saveToFile(const std::string &fileName);
+
     private:
         // Find the tile with minimum entropy
         std::pair<size_t, size_t> findMinEntropyTile() const;

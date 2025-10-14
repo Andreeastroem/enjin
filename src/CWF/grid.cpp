@@ -1,4 +1,5 @@
 #include "grid.h"
+#include <fstream>
 
 namespace cwf
 {
@@ -251,5 +252,90 @@ namespace cwf
                 }
             }
         }
+    }
+
+    bool Grid::saveToFile(const std::string &fileName)
+    {
+        // Retrieve the mapping between tile IDs and their representative characters
+        auto idToChar = rules.getTileMapping().second;
+
+        try
+        {
+            std::ofstream s(fileName, std::ofstream::out | std::ofstream::trunc);
+            if (!s.is_open())
+            {
+                return false;
+            }
+
+            // 1) Write mapping header lines: Name:Char:Id
+            // We don't have human-readable names here, so we emit a placeholder name "Tile<id>".
+            // The loader ignores the name field and only uses Char and Id.
+            std::vector<std::pair<int, char>> orderedMappings;
+            orderedMappings.reserve(idToChar.size());
+            for (const auto &kv : idToChar)
+            {
+                orderedMappings.emplace_back(kv.first, kv.second);
+            }
+            std::sort(orderedMappings.begin(), orderedMappings.end(), [](const auto &a, const auto &b)
+                      { return a.first < b.first; });
+
+            for (const auto &[id, ch] : orderedMappings)
+            {
+                s << "Tile" << id << ":" << ch << ":" << id << "\n";
+            }
+
+            // Delimiter line
+            s << "---\n";
+
+            // 2) Write grid rows as characters
+            for (size_t y = 0; y < height; ++y)
+            {
+                for (size_t x = 0; x < width; ++x)
+                {
+                    const Tile &tile = getTile(x, y);
+
+                    // Determine the tile id to write
+                    int idToWrite = -1;
+                    if (tile.isCollapsed())
+                    {
+                        // Collapsed tile should have exactly one possible state
+                        const auto &states = tile.getPossibleStates();
+                        if (!states.empty())
+                        {
+                            idToWrite = states[0];
+                        }
+                    }
+                    else
+                    {
+                        // If not collapsed, pick the first available state as a best-effort fallback
+                        const auto &states = tile.getPossibleStates();
+                        if (!states.empty())
+                        {
+                            idToWrite = states[0];
+                        }
+                    }
+
+                    // Translate id to character (fallback to '?' if missing)
+                    char tileCharacter = '?';
+                    auto it = idToChar.find(idToWrite);
+                    if (it != idToChar.end())
+                    {
+                        tileCharacter = it->second;
+                    }
+
+                    s.write(&tileCharacter, 1);
+                }
+                s << "\n";
+            }
+
+            s.close();
+        }
+        catch (const std::exception &error)
+        {
+            printf("%s", error.what());
+            return false;
+        }
+
+        return true;
     }
 }

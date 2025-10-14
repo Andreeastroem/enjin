@@ -39,6 +39,8 @@ namespace cwf
         // Get the current possible states
         const std::vector<TileId> &getPossibleStates() const { return possibleStates; }
 
+        const TileId getCurrectState();
+
     private:
         std::vector<TileId> possibleStates;
         TileId currentState;

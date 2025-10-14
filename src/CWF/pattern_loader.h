@@ -51,6 +51,16 @@ namespace cwf
             return pattern;
         }
 
+        static bool savePatternToFile(std::ofstream &stream, TileRules &rules)
+        {
+            if (!stream.is_open())
+            {
+                return false;
+            }
+
+            return true;
+        }
+
         static Pattern loadPatternFromFile(const std::string &filename)
         {
             Pattern pattern = Pattern();
