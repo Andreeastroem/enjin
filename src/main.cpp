@@ -30,6 +30,7 @@ struct gridSize
 {
 	static const u_int rows = 70;
 	static const u_int cols = 70;
+	static const u_int cellSize = 60;
 };
 
 void handleClayErrors(Clay_ErrorData errorData)
@@ -51,7 +52,8 @@ enum TileTypes
 	GRASS = 1,
 	WATER = 2,
 	SAND = 3,
-	TREE = 4
+	TREE = 4,
+	MOUNTAIN = 5
 };
 
 cwf::Tile getTileFromCharacter(char character)
@@ -167,7 +169,7 @@ int main()
 	Clay_Context *clayContext = setupClay();
 
 	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
-	InitWindow(windowSize::width, windowSize::height, "Wave Function Collapse Example");
+	InitWindow(windowSize::width, windowSize::height, "Enjin");
 	SearchAndSetResourceDir("resources");
 
 	Font fonts[1];
@@ -217,28 +219,25 @@ int main()
 	visuals[WATER] = cwf::TileVisual{BLUE, nullptr, Rectangle{0, 0, 0, 0}};
 	visuals[SAND] = cwf::TileVisual{BEIGE, nullptr, Rectangle{0, 0, 0, 0}};
 	visuals[TREE] = cwf::TileVisual{DARKGREEN, nullptr, Rectangle{0, 0, 0, 0}};
+	visuals[MOUNTAIN] = cwf::TileVisual{DARKGRAY, nullptr, Rectangle{0, 0, 0, 0}};
 	grid.setVisuals(visuals);
 
 	bool isGenerating = false;
-	float cellSize = 30.0f; // Size of each tile in main view (world units are pixels)
 
-	viewport::CameraController cameraCtrl(cellSize);
+	viewport::CameraController cameraCtrl(gridSize::cellSize);
 	viewport::Minimap minimap;
 	minimap.initialize(grid, 300);
 
 	Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
-	Clay_SetDebugModeEnabled(true);
+	Clay_SetDebugModeEnabled(false);
 
 	while (!WindowShouldClose())
 	{
-		// Keep Clay input and layout synced with the window
+		Vector2 mp = GetMousePosition();
+		Clay_SetPointerState(Clay_Vector2{mp.x, mp.y}, IsMouseButtonDown(MOUSE_LEFT_BUTTON));
+		if (IsWindowResized())
 		{
-			Vector2 mp = GetMousePosition();
-			Clay_SetPointerState(Clay_Vector2{mp.x, mp.y}, IsMouseButtonDown(MOUSE_LEFT_BUTTON));
-			if (IsWindowResized())
-			{
-				Clay_SetLayoutDimensions(Clay_Dimensions{(float)GetScreenWidth(), (float)GetScreenHeight()});
-			}
+			Clay_SetLayoutDimensions(Clay_Dimensions{(float)GetScreenWidth(), (float)GetScreenHeight()});
 		}
 
 		// Update
@@ -278,7 +277,7 @@ int main()
 			minimap.toggleSize(150, 300);
 		}
 		// Handle minimap click-to-pan
-		minimap.handleInput(grid, cameraCtrl.getCamera(), cellSize);
+		minimap.handleInput(grid, cameraCtrl.getCamera(), gridSize::cellSize);
 
 		// Drawing
 		BeginDrawing();
@@ -286,11 +285,11 @@ int main()
 
 		// Draw the grid in camera space
 		BeginMode2D(cameraCtrl.getCamera());
-		grid.draw(cellSize, 0.0f, 0.0f);
+		grid.draw(gridSize::cellSize, 0.0f, 0.0f);
 		EndMode2D();
 
 		// Minimap rendering
-		minimap.render(grid, cellSize, cameraCtrl.getCamera());
+		minimap.render(grid, gridSize::cellSize, cameraCtrl.getCamera());
 
 		// Draw instructions
 		Clay_Raylib_Render(SideBar(clayContext), fonts);
