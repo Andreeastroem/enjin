@@ -17,8 +17,7 @@
 #include <iostream>
 #include <cmath>
 #include <algorithm>
-#include "viewport/CameraController.h"
-#include "viewport/Minimap.h"
+#include "viewport/Viewport.h"
 #include "ui/Ui.h"
 #include "loaders/Loaders.h"
 
@@ -60,7 +59,6 @@ enum TileTypes
 	TREE = 4,
 	MOUNTAIN = 5
 };
-
 
 // Removed local UI helpers: now using ui:: functions
 
@@ -121,9 +119,8 @@ int main()
 
 	bool isGenerating = false;
 
-	viewport::CameraController cameraCtrl(gridSize::cellSize);
-	viewport::Minimap minimap;
-	minimap.initialize(grid, 300);
+	viewport::Viewport view(gridSize::cellSize);
+	view.initialize(grid, 300);
 
 	Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
 	Clay_SetDebugModeEnabled(false);
@@ -155,9 +152,8 @@ int main()
 
 		if (!g_uiState.showSavePrompt)
 		{
-
-			// Update camera via controller
-			cameraCtrl.update(grid);
+			// Update camera via facade
+			view.update(grid);
 			// Update
 			if (IsKeyPressed(KEY_SPACE))
 			{
@@ -175,14 +171,14 @@ int main()
 			// Minimap controls: toggle visibility (M), toggle size (N small/large)
 			if (IsKeyPressed(KEY_M))
 			{
-				minimap.toggleVisible();
+				view.toggleMinimapVisible();
 			}
 			if (IsKeyPressed(KEY_N))
 			{
-				minimap.toggleSize(150, 300);
+				view.toggleMinimapSize(150, 300);
 			}
 			// Handle minimap click-to-pan
-			minimap.handleInput(grid, cameraCtrl.getCamera(), gridSize::cellSize);
+			view.handleInput(grid);
 		}
 
 		// Drawing
@@ -190,12 +186,12 @@ int main()
 		ClearBackground(RAYWHITE);
 
 		// Draw the grid in camera space
-		BeginMode2D(cameraCtrl.getCamera());
+		BeginMode2D(view.camera());
 		grid.draw(gridSize::cellSize, 0.0f, 0.0f);
 		EndMode2D();
 
 		// Minimap rendering
-		minimap.render(grid, gridSize::cellSize, cameraCtrl.getCamera());
+		view.render(grid);
 
 		// Draw UI (sidebar + save modal)
 		Clay_Raylib_Render(ui::SideBar(clayContext, grid, g_uiState), fonts);
@@ -204,7 +200,6 @@ int main()
 	}
 
 	// Cleanup
-	minimap.release();
 	Clay_Raylib_Close();
 	return 0;
 }
