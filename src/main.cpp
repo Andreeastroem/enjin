@@ -19,12 +19,10 @@
 #include <algorithm>
 #include "viewport/CameraController.h"
 #include "viewport/Minimap.h"
+#include "ui/Ui.h"
 
-// Save dialog state (global for access across UI and main loop)
-static bool g_showSavePrompt = false;
-static std::string g_saveFilename = "output.pattern";
-static bool g_saveAttempted = false;
-static bool g_saveSuccess = false;
+// UI State
+static ui::UiState g_uiState;
 
 struct windowSize
 {
@@ -123,181 +121,7 @@ std::vector<std::vector<cwf::Tile>> readTileMapFromFile(std::string filename)
 	return tilemap;
 }
 
-void RenderText(Clay_String text)
-{
-	CLAY_AUTO_ID({.layout = {.padding = CLAY_PADDING_ALL(16)}})
-	{
-		CLAY_TEXT(text, CLAY_TEXT_CONFIG({.fontId = 0,
-										  .fontSize = 16,
-										  .textColor = {255, 255, 255, 255}}));
-	}
-}
-
-// Forward declare the Save Modal (declares UI and handles interactions)
-static void SaveModal(cwf::Grid &grid)
-{
-	if (!g_showSavePrompt)
-		return;
-
-	// Darken background overlay
-	CLAY(CLAY_ID("SaveOverlay"), {.backgroundColor = {0, 0, 0, 128},
-								  .floating = {
-									  .attachTo = CLAY_ATTACH_TO_ROOT,
-									  .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_CAPTURE,
-									  .zIndex = 1000,
-									  .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
-									  .offset = {0, 0},
-								  },
-								  .layout = {.sizing = {
-												 .width = CLAY_SIZING_PERCENT(1.0f),
-												 .height = CLAY_SIZING_PERCENT(1.0f),
-											 }}})
-	{
-		// Centered dialog panel
-		CLAY(CLAY_ID("SaveDialogPanel"), {.backgroundColor = {35, 35, 35, 255},
-										  .cornerRadius = CLAY_CORNER_RADIUS(8),
-										  .floating = {
-											  .attachTo = CLAY_ATTACH_TO_ROOT,
-											  .pointerCaptureMode = CLAY_POINTER_CAPTURE_MODE_CAPTURE,
-											  .zIndex = 1001,
-											  .attachPoints = {CLAY_ATTACH_POINT_CENTER_CENTER, CLAY_ATTACH_POINT_CENTER_CENTER},
-											  .offset = {0, 0},
-										  },
-										  .layout = {
-											  .padding = CLAY_PADDING_ALL(16),
-											  .sizing = {
-												  .width = CLAY_SIZING_FIXED(540),
-												  .height = CLAY_SIZING_FIXED(220),
-											  },
-											  .layoutDirection = CLAY_TOP_TO_BOTTOM,
-											  .childGap = 12,
-											  .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_TOP},
-										  }})
-		{
-			// Title
-			RenderText(CLAY_STRING("Save As"));
-
-			// Filename input label
-			CLAY_AUTO_ID({.layout = {.sizing = {.width = CLAY_SIZING_GROW(1), .height = CLAY_SIZING_FIT(0, 9999)}}})
-			{
-				CLAY_TEXT(CLAY_STRING("Filename"), CLAY_TEXT_CONFIG({.fontId = 0, .fontSize = 18, .textColor = {230, 230, 230, 255}}));
-			}
-
-			// Filename input box (display only; input handled in main loop)
-			CLAY(CLAY_ID("FilenameBox"), {.backgroundColor = {55, 55, 55, 255},
-										  .border = {.color = {200, 200, 200, 255}, .width = CLAY_BORDER_ALL(1)},
-										  .cornerRadius = CLAY_CORNER_RADIUS(4),
-										  .layout = {
-											  .padding = CLAY_PADDING_ALL(10),
-											  .sizing = {
-												  .width = CLAY_SIZING_GROW(1),
-												  .height = CLAY_SIZING_FIXED(44),
-											  },
-											  .childAlignment = {CLAY_ALIGN_X_LEFT, CLAY_ALIGN_Y_CENTER},
-										  }})
-			{
-				// Show current filename
-				// Convert std::string to Clay_String for rendering
-				Clay_String dyn = {.isStaticallyAllocated = false, .length = (int)g_saveFilename.size(), .chars = g_saveFilename.c_str()};
-				CLAY_TEXT(dyn, CLAY_TEXT_CONFIG({.fontId = 0, .fontSize = 20, .textColor = {255, 255, 255, 255}}));
-			}
-
-			// Action buttons row
-			CLAY(CLAY_ID("ButtonsRow"), {.layout = {
-											 .sizing = {.width = CLAY_SIZING_GROW(1), .height = CLAY_SIZING_FIT(0, 9999)},
-											 .layoutDirection = CLAY_LEFT_TO_RIGHT,
-											 .childAlignment = {CLAY_ALIGN_X_RIGHT, CLAY_ALIGN_Y_TOP},
-											 .childGap = 12,
-										 }})
-			{
-				// Cancel
-				CLAY(CLAY_ID("CancelButton"), {.backgroundColor = {90, 90, 90, 255},
-											   .cornerRadius = CLAY_CORNER_RADIUS(4),
-											   .layout = {.padding = CLAY_PADDING_ALL(10), .sizing = {.width = CLAY_SIZING_FIT(0, 9999), .height = CLAY_SIZING_FIT(0, 9999)}}})
-				{
-					CLAY_TEXT(CLAY_STRING("Cancel"), CLAY_TEXT_CONFIG({.fontId = 0, .fontSize = 18, .textColor = {255, 255, 255, 255}}));
-					if (Clay_Hovered() && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
-					{
-						g_showSavePrompt = false;
-						g_saveAttempted = false;
-					}
-				}
-
-				// Save
-				CLAY(CLAY_ID("SaveButton"), {.backgroundColor = {0, 120, 215, 255},
-											 .cornerRadius = CLAY_CORNER_RADIUS(4),
-											 .layout = {.padding = CLAY_PADDING_ALL(10), .sizing = {.width = CLAY_SIZING_FIT(0, 9999), .height = CLAY_SIZING_FIT(0, 9999)}}})
-				{
-					CLAY_TEXT(CLAY_STRING("Save"), CLAY_TEXT_CONFIG({.fontId = 0, .fontSize = 18, .textColor = {255, 255, 255, 255}}));
-					if (Clay_Hovered() && IsMouseButtonPressed(MOUSE_LEFT_BUTTON))
-					{
-						g_saveSuccess = grid.saveToFile(g_saveFilename);
-						g_saveAttempted = true;
-						if (g_saveSuccess)
-						{
-							g_showSavePrompt = false;
-						}
-					}
-				}
-			}
-
-			// Optional status text if attempted
-			if (g_saveAttempted)
-			{
-				CLAY_AUTO_ID({.layout = {.sizing = {.width = CLAY_SIZING_GROW(1), .height = CLAY_SIZING_FIT(0, 9999)}}})
-				{
-					if (g_saveSuccess)
-					{
-						CLAY_TEXT(CLAY_STRING("Saved."), CLAY_TEXT_CONFIG({.fontId = 0, .fontSize = 16, .textColor = {150, 255, 150, 255}}));
-					}
-					else
-					{
-						CLAY_TEXT(CLAY_STRING("Failed to save."), CLAY_TEXT_CONFIG({.fontId = 0, .fontSize = 16, .textColor = {255, 150, 150, 255}}));
-					}
-				}
-			}
-		}
-	}
-}
-
-Clay_RenderCommandArray SideBar(Clay_Context *context, cwf::Grid &grid)
-{
-	Clay_BeginLayout();
-
-	Clay_Sizing layoutExpand = {
-		.width = CLAY_SIZING_PERCENT(0.20f),
-		.height = CLAY_SIZING_GROW(1)};
-
-	Clay_Color backgroundColor = {90, 90, 90, 200};
-
-	CLAY(CLAY_ID("root"), {.layout = {
-							   .sizing = {
-								   .width = CLAY_SIZING_GROW(1),
-								   .height = CLAY_SIZING_GROW(1),
-							   }}})
-	{
-
-		CLAY(CLAY_ID("Container"), {.backgroundColor = backgroundColor,
-									.layout = {
-										.layoutDirection = CLAY_TOP_TO_BOTTOM,
-										.sizing = layoutExpand,
-										.childGap = 16,
-									}})
-		{
-			RenderText(CLAY_STRING("Space: Start/Pause Generation"));
-			RenderText(CLAY_STRING("R: Reset Grid"));
-			RenderText(CLAY_STRING("Arrows/WASD or RMB drag: Pan"));
-			RenderText(CLAY_STRING("Mouse wheel: Zoom"));
-			RenderText(CLAY_STRING("M: Toggle minimap visibility"));
-			RenderText(CLAY_STRING("N: Toggle minimap size"));
-		}
-	}
-	// Save modal overlay (placed after to ensure it renders on top)
-	SaveModal(grid);
-
-	Clay_RenderCommandArray renderCommands = Clay_EndLayout();
-	return renderCommands;
-}
+// Removed local UI helpers: now using ui:: functions
 
 int main()
 {
@@ -306,6 +130,7 @@ int main()
 
 	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
 	InitWindow(windowSize::width, windowSize::height, "Enjin");
+	SetExitKey(KEY_NULL);
 	SearchAndSetResourceDir("resources");
 
 	Font fonts[1];
@@ -367,6 +192,9 @@ int main()
 	Clay_SetMeasureTextFunction(Raylib_MeasureText, fonts);
 	Clay_SetDebugModeEnabled(false);
 
+	// Initialize UI state
+	ui::Init(g_uiState);
+
 	while (!WindowShouldClose())
 	{
 		Vector2 mp = GetMousePosition();
@@ -376,56 +204,9 @@ int main()
 			Clay_SetLayoutDimensions(Clay_Dimensions{(float)GetScreenWidth(), (float)GetScreenHeight()});
 		}
 
-		// Ctrl+S to open Save dialog
-		bool ctrlDown = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
-		if (!g_showSavePrompt && ctrlDown && IsKeyPressed(KEY_S))
-		{
-			g_showSavePrompt = true;
-			g_saveAttempted = false;
-		}
-
-		// Handle text input for save dialog when open
-		if (g_showSavePrompt)
-		{
-			// Enter to save
-			if (IsKeyPressed(KEY_ENTER))
-			{
-				g_saveSuccess = grid.saveToFile(g_saveFilename);
-				g_saveAttempted = true;
-				if (g_saveSuccess)
-				{
-					g_showSavePrompt = false;
-				}
-			}
-			// Escape to cancel
-			if (IsKeyPressed(KEY_ESCAPE))
-			{
-				g_showSavePrompt = false;
-				g_saveAttempted = false;
-			}
-			// Backspace support
-			if (IsKeyPressed(KEY_BACKSPACE))
-			{
-				if (!g_saveFilename.empty())
-				{
-					g_saveFilename.pop_back();
-				}
-			}
-			// Character input (basic ASCII)
-			int key = 0;
-			while ((key = GetCharPressed()) != 0)
-			{
-				if (key >= 32 && key < 127)
-				{
-					char c = (char)key;
-					// Restrict to a safe set of filename characters
-					if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.')
-					{
-						g_saveFilename.push_back(c);
-					}
-				}
-			}
-		}
+		// UI shortcuts and dialog input
+		ui::HandleShortcuts(g_uiState);
+		ui::HandleSaveDialogInput(g_uiState, grid);
 
 		if (isGenerating)
 		{
@@ -436,7 +217,7 @@ int main()
 			}
 		}
 
-		if (!g_showSavePrompt)
+		if (!g_uiState.showSavePrompt)
 		{
 
 			// Update camera via controller
@@ -481,7 +262,7 @@ int main()
 		minimap.render(grid, gridSize::cellSize, cameraCtrl.getCamera());
 
 		// Draw UI (sidebar + save modal)
-		Clay_Raylib_Render(SideBar(clayContext, grid), fonts);
+		Clay_Raylib_Render(ui::SideBar(clayContext, grid, g_uiState), fonts);
 
 		EndDrawing();
 	}
