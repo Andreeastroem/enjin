@@ -20,6 +20,7 @@
 #include "viewport/CameraController.h"
 #include "viewport/Minimap.h"
 #include "ui/Ui.h"
+#include "loaders/Loaders.h"
 
 // UI State
 static ui::UiState g_uiState;
@@ -60,66 +61,6 @@ enum TileTypes
 	MOUNTAIN = 5
 };
 
-cwf::Tile getTileFromCharacter(char character)
-{
-	switch (character)
-	{
-	case 'W':
-		return cwf::Tile("Water", 2);
-	case 'S':
-		return cwf::Tile("Sand", 3);
-	case 'T':
-		return cwf::Tile("Tree", 4);
-	case 'G':
-	default:
-		return cwf::Tile("Grass", 1);
-		break;
-	}
-}
-
-bool isValidCharacter(char character)
-{
-	char possibleValues[4] = {'G', 'S', 'W', 'T'};
-	for (uint i = 0; i < 4; ++i)
-	{
-		if (character == possibleValues[i])
-		{
-			return true;
-		}
-	}
-
-	return false;
-}
-
-std::vector<std::vector<cwf::Tile>> readTileMapFromFile(std::string filename)
-{
-	// TODO: read file and create tile with name and ID for each determined by the tileTypes
-	std::vector<std::vector<cwf::Tile>> tilemap;
-	std::ifstream s(filename);
-	std::string row;
-
-	if (!s.is_open())
-	{
-		return tilemap;
-	}
-
-	while (std::getline(s, row))
-	{
-		std::vector<cwf::Tile> rowTiles;
-		for (char tileCharacter : row)
-		{
-			if (isValidCharacter(tileCharacter))
-			{
-				cwf::Tile t = getTileFromCharacter(tileCharacter);
-				rowTiles.push_back(t);
-			}
-		}
-		tilemap.push_back(rowTiles);
-	}
-
-	s.close();
-	return tilemap;
-}
 
 // Removed local UI helpers: now using ui:: functions
 
@@ -138,19 +79,14 @@ int main()
 	// Load the font relative to the new CWD (no leading "resources/") so it actually loads.
 	fonts[0] = LoadFontEx("AldotheApache.ttf", 48, 0, 400);
 
-	auto tilemap = readTileMapFromFile("island.pattern");
-	auto tileWeights = cwf::TileWeights();
-	tileWeights.calculateTileWeights(tilemap);
-	tileWeights.writeTileWeightsToFile("tinyWeights.json");
+	loaders::LoadTilemapAndWriteWeights("island.pattern", "tinyWeights.json");
 
 	// Load pattern from file
 	cwf::TileRules rules;
 	cwf::Pattern pattern;
 	try
 	{
-		pattern = cwf::PatternLoader::loadPatternFromFile("pattern_example.txt");
-		rules.addTileMapping(pattern.tileMapping);
-		rules.learnPattern(pattern.charPattern);
+		pattern = loaders::LoadPatternAndConfigureRules("pattern_example.txt", rules);
 	}
 	catch (const std::exception &e)
 	{
