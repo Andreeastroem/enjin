@@ -3,13 +3,12 @@
 #include "../stage.h"
 
 #include "clay.h"
-
 #include "raylib.h"
 
-class MenuStage : public Stage
+class GameOverStage : public Stage
 {
 public:
-    MenuStage(Clay_Context *clayContext, Font *fonts);
+    GameOverStage(Clay_Context *clayContext, Font *fonts);
 
     void update(float deltaTime) override;
     void render() override;

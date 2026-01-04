@@ -2,6 +2,7 @@
 
 MainStage::MainStage()
 {
+    name = "Main";
 }
 
 MainStage::~MainStage()

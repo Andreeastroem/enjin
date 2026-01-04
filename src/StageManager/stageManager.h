@@ -3,6 +3,8 @@
 #include "stage.h"
 
 #include <map>
+#include <memory>
+#include <optional>
 #include <string>
 
 class StageManager
@@ -14,13 +16,21 @@ public:
     void update(float deltaTime);
     void render();
 
-    void addStage(Stage *stage);
+    void addStage(std::unique_ptr<Stage> stage);
     void removeStage(std::string name);
+
+    bool setCurrentStage(const std::string &name);
+    void queueStageChange(const std::string &name);
+
+    void requestExit();
+    bool exitRequested() const;
 
     Stage *getCurrentStage();
     Stage *getStageByName(const std::string &name);
 
 private:
     Stage *currentStage;
-    std::map<std::string, Stage *> possibleStages;
+    std::optional<std::string> queuedStage;
+    bool shouldExit = false;
+    std::map<std::string, std::unique_ptr<Stage>> possibleStages;
 };
