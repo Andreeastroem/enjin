@@ -6,6 +6,7 @@ class Stage
     friend class StageManager;
 
 public:
+    virtual ~Stage() = 0;
     virtual void update(float deltaTime) = 0;
     virtual void render() = 0;
 

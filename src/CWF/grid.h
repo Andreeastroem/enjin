@@ -45,11 +45,11 @@ namespace cwf
         bool isFullyCollapsed() const;
 
         // Get dimensions
-        size_t getWidth() const { return width; }
-        size_t getHeight() const { return height; }
+        size_t getWidth() const { return m_width; }
+        size_t getHeight() const { return m_height; }
 
         // Visualization methods
-        void setVisuals(const TileVisuals &visuals) { tileVisuals = visuals; }
+        void setVisuals(const TileVisuals &visuals) { m_tileVisuals = visuals; }
         void draw(float cellSize, float offsetX = 0, float offsetY = 0) const;
 
         // Persistence methods
@@ -63,12 +63,12 @@ namespace cwf
         void propagateConstraints(size_t x, size_t y);
 
     private:
-        std::vector<Tile> tiles;
-        size_t width;
-        size_t height;
-        mutable std::mt19937 rng;
-        TileRules rules;
-        TileVisuals tileVisuals;
-        TileWeights weights;
+        std::vector<Tile> m_tiles;
+        size_t m_width;
+        size_t m_height;
+        mutable std::mt19937 m_rng;
+        TileRules m_rules;
+        TileVisuals m_tileVisuals;
+        TileWeights m_weights;
     };
 }

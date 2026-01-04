@@ -4,13 +4,13 @@
 namespace cwf
 {
     Grid::Grid(size_t width, size_t height)
-        : width(width), height(height), tiles(width * height),
-          rng(std::random_device{}()) {}
+        : m_width(width), m_height(height), m_tiles(width * height),
+          m_rng(std::random_device{}()) {}
 
     void Grid::initialize(const std::vector<Tile::TileId> &possibleStates, const TileRules &rules)
     {
-        this->rules = rules;
-        for (auto &tile : tiles)
+        this->m_rules = rules;
+        for (auto &tile : m_tiles)
         {
             for (auto state : possibleStates)
             {
@@ -21,20 +21,20 @@ namespace cwf
 
     Tile &Grid::getTile(size_t x, size_t y)
     {
-        if (x >= width || y >= height)
+        if (x >= m_width || y >= m_height)
         {
             throw std::out_of_range("Tile coordinates out of bounds");
         }
-        return tiles[y * width + x];
+        return m_tiles[y * m_width + x];
     }
 
     const Tile &Grid::getTile(size_t x, size_t y) const
     {
-        if (x >= width || y >= height)
+        if (x >= m_width || y >= m_height)
         {
             throw std::out_of_range("Tile coordinates out of bounds");
         }
-        return tiles[y * width + x];
+        return m_tiles[y * m_width + x];
     }
 
     std::pair<size_t, size_t> Grid::findMinEntropyTile() const
@@ -42,9 +42,9 @@ namespace cwf
         size_t minEntropy = std::numeric_limits<size_t>::max();
         std::vector<std::pair<size_t, size_t>> minEntropyTiles;
 
-        for (size_t y = 0; y < height; ++y)
+        for (size_t y = 0; y < m_height; ++y)
         {
-            for (size_t x = 0; x < width; ++x)
+            for (size_t x = 0; x < m_width; ++x)
             {
                 const Tile &tile = getTile(x, y);
                 if (!tile.isCollapsed())
@@ -71,7 +71,7 @@ namespace cwf
 
         // Randomly select one of the minimum entropy tiles
         std::uniform_int_distribution<size_t> dist(0, minEntropyTiles.size() - 1);
-        return minEntropyTiles[dist(rng)];
+        return minEntropyTiles[dist(m_rng)];
     }
 
     bool Grid::collapseStep()
@@ -109,7 +109,7 @@ namespace cwf
                         auto oppositeDir = static_cast<Direction>((static_cast<int>(dir) + 2) % 4);
 
                         // Get weighted connections from the neighbor
-                        auto connections = rules.getWeightedConnections(neighborState, oppositeDir);
+                        auto connections = m_rules.getWeightedConnections(neighborState, oppositeDir);
                         for (const auto &[state, weight] : connections)
                         {
                             if (stateWeights.find(state) != stateWeights.end())
@@ -133,7 +133,7 @@ namespace cwf
 
             // Create discrete distribution for weighted random selection
             std::discrete_distribution<size_t> dist(weights.begin(), weights.end());
-            tile.collapse(weightedStates[dist(rng)]);
+            tile.collapse(weightedStates[dist(m_rng)]);
 
             // Propagate the constraints to neighboring tiles
             propagateConstraints(x, y);
@@ -148,16 +148,16 @@ namespace cwf
 
     bool Grid::isFullyCollapsed() const
     {
-        return std::all_of(tiles.begin(), tiles.end(),
+        return std::all_of(m_tiles.begin(), m_tiles.end(),
                            [](const Tile &tile)
                            { return tile.isCollapsed(); });
     }
 
     void Grid::draw(float cellSize, float offsetX, float offsetY) const
     {
-        for (size_t y = 0; y < height; ++y)
+        for (size_t y = 0; y < m_height; ++y)
         {
-            for (size_t x = 0; x < width; ++x)
+            for (size_t x = 0; x < m_width; ++x)
             {
                 const Tile &tile = getTile(x, y);
                 float posX = x * cellSize + offsetX;
@@ -168,8 +168,8 @@ namespace cwf
                 {
                     // Draw collapsed tile
                     auto state = tile.getPossibleStates()[0];
-                    auto it = tileVisuals.find(state);
-                    if (it != tileVisuals.end())
+                    auto it = m_tileVisuals.find(state);
+                    if (it != m_tileVisuals.end())
                     {
                         const auto &visual = it->second;
                         DrawRectangleRec(destRect, visual.color);
@@ -187,7 +187,7 @@ namespace cwf
                 {
                     // Draw uncollapsed tile with entropy visualization
                     float entropy = static_cast<float>(tile.getEntropy());
-                    float maxEntropy = static_cast<float>(tileVisuals.size());
+                    float maxEntropy = static_cast<float>(m_tileVisuals.size());
                     float brightness = (maxEntropy - entropy) / maxEntropy;
                     Color color = {128, 128, 128, static_cast<unsigned char>(255 * brightness)};
                     DrawRectangleRec(destRect, color);
@@ -206,11 +206,11 @@ namespace cwf
         case Direction::NORTH:
             return {x, y > 0 ? y - 1 : -1};
         case Direction::SOUTH:
-            return {x, y < height - 1 ? y + 1 : -1};
+            return {x, y < m_height - 1 ? y + 1 : -1};
         case Direction::WEST:
             return {x > 0 ? x - 1 : -1, y};
         case Direction::EAST:
-            return {x < width - 1 ? x + 1 : -1, y};
+            return {x < m_width - 1 ? x + 1 : -1, y};
         default:
             return {-1, -1};
         }
@@ -240,7 +240,7 @@ namespace cwf
                 continue;
 
             // Get all valid states for the neighbor based on the rules
-            auto validStates = rules.getValidConnections(sourceState, dir);
+            auto validStates = m_rules.getValidConnections(sourceState, dir);
 
             // Update neighbor's possible states to only include valid ones
             auto currentStates = neighborTile.getPossibleStates();
@@ -257,7 +257,7 @@ namespace cwf
     bool Grid::saveToFile(const std::string &fileName)
     {
         // Retrieve the mapping between tile IDs and their representative characters
-        auto idToChar = rules.getTileMapping().second;
+        auto idToChar = m_rules.getTileMapping().second;
 
         try
         {
@@ -288,9 +288,9 @@ namespace cwf
             s << "---\n";
 
             // 2) Write grid rows as characters
-            for (size_t y = 0; y < height; ++y)
+            for (size_t y = 0; y < m_height; ++y)
             {
-                for (size_t x = 0; x < width; ++x)
+                for (size_t x = 0; x < m_width; ++x)
                 {
                     const Tile &tile = getTile(x, y);
 

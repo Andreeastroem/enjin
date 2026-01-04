@@ -67,7 +67,7 @@ int main()
 	// Clay setup
 	Clay_Context *clayContext = setupClay();
 
-	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI);
+	SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_HIGHDPI | FLAG_WINDOW_RESIZABLE);
 	InitWindow(windowSize::width, windowSize::height, "Enjin");
 	SetExitKey(KEY_NULL);
 	SearchAndSetResourceDir("resources");
